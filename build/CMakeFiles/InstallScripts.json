@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/tprettol/repo/Quicftp/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

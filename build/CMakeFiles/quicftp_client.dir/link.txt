@@ -1,0 +1,2 @@
+/usr/bin/ar qc libquicftp_client.a CMakeFiles/quicftp_client.dir/quicftp_client.cc.o CMakeFiles/quicftp_client.dir/quic_wrapper.cc.o CMakeFiles/quicftp_client.dir/stream_manager.cc.o CMakeFiles/quicftp_client.dir/test_bridge.cc.o
+/usr/bin/ranlib libquicftp_client.a
