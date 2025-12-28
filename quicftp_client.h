@@ -4,6 +4,11 @@
 #define QUICFTP_CLIENT_H
 
 #include <string>
+#include <memory>
+#include <vector>
+#include <utility>
+#include <functional>
+#include "quic_common.h"
 
 namespace quicftp {
 
@@ -24,14 +29,23 @@ public:
 
   bool download_file(const std::string& remote_path, const std::string& local_path);
 
+  // Parallel transfer methods
+  bool upload_files(const std::vector<std::pair<std::string, std::string>>& files); // (local, remote) pairs
+  bool download_files(const std::vector<std::pair<std::string, std::string>>& files); // (remote, local) pairs
+
+  // Progress and cancellation
+  void set_progress_callback(std::function<void(StreamId, size_t, size_t)> callback);
+  bool cancel_transfer(StreamId stream_id);
+
   bool logout();
 
   void disconnect();
 
 private:
 
-  // Internals for connection, streams, 
-  // parsing commands, file transfer etc.
+  // PIMPL idiom for implementation details
+  class Impl;
+  std::unique_ptr<Impl> impl_;
 
 };
 
