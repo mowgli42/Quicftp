@@ -13,8 +13,15 @@ option(BUILD_SERVER "Build server library and CLI" ON)
 find_package(OpenSSL REQUIRED)
 find_package(Threads REQUIRED)
 
+# ngtcp2 and nghttp3 libraries (installed system-wide)
+# These are C libraries, so we link them directly
+find_library(NGTCP2_LIB ngtcp2 PATHS /usr/lib /usr/local/lib REQUIRED)
+find_library(NGTCP2_CRYPTO_OSSL_LIB ngtcp2_crypto_ossl PATHS /usr/lib /usr/local/lib REQUIRED)
+find_library(NGHTTP3_LIB nghttp3 PATHS /usr/lib /usr/local/lib REQUIRED)
+
 # Include directories
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(/usr/include/ngtcp2 /usr/include/nghttp3)
 
 # Source files
 set(CLIENT_SOURCES
@@ -44,6 +51,9 @@ if(BUILD_CLIENT)
         OpenSSL::SSL 
         OpenSSL::Crypto
         Threads::Threads
+        ${NGTCP2_LIB}
+        ${NGTCP2_CRYPTO_OSSL_LIB}
+        ${NGHTTP3_LIB}
     )
     
     add_executable(quicftpclient quicftpclient-cli.cc)
@@ -60,17 +70,15 @@ if(BUILD_SERVER)
         OpenSSL::SSL 
         OpenSSL::Crypto
         Threads::Threads
+        ${NGTCP2_LIB}
+        ${NGTCP2_CRYPTO_OSSL_LIB}
+        ${NGHTTP3_LIB}
     )
     
     add_executable(quicftpserver quicftpserver-cli.cc)
     target_link_libraries(quicftpserver quicftp_server)
 endif()
 
-# TODO: Add ngtcp2 when available
-# For now, we'll build without it and add it later
-# find_package(ngtcp2 REQUIRED)
-# target_link_libraries(quicftp_client ngtcp2::ngtcp2)
-# target_link_libraries(quicftp_server ngtcp2::ngtcp2)
 
 # Installation
 install(TARGETS quicftpclient quicftpserver

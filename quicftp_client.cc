@@ -5,6 +5,18 @@
 #include "quic_wrapper.h"
 #include "stream_manager.h"
 #include "test_bridge.h"
+#include <ngtcp2/ngtcp2.h>
+#include <ngtcp2/ngtcp2_crypto_ossl.h>
+#include <ngtcp2/ngtcp2_crypto.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/rand.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
@@ -13,6 +25,8 @@
 #include <vector>
 #include <functional>
 #include <chrono>
+#include <cstring>
+#include <thread>
 
 namespace quicftp {
 
@@ -37,29 +51,575 @@ private:
   bool connected_;
   std::string server_address_;
   std::string cert_path_;
-  // TODO: Add actual QUIC client connection
+  
+  // ngtcp2 client connection
+  ngtcp2_conn* conn_;
+  ngtcp2_crypto_ossl_ctx* ossl_ctx_;
+  SSL_CTX* ssl_ctx_;
+  SSL* ssl_;
+  int udp_fd_;
+  struct sockaddr_in server_addr_;
+  
+  // Helper methods
+  bool parse_address(const std::string& address, std::string& host, int& port);
+  bool create_udp_socket();
+  bool initialize_ngtcp2_connection();
+  bool send_initial_packet();
+  bool process_incoming_packets();
+  bool send_pending_packets();
 };
 
-// Stub implementation
-QuicClientWrapper::QuicClientWrapper() : connected_(false) {}
-QuicClientWrapper::~QuicClientWrapper() { disconnect(); }
+// Implementation with ngtcp2
+QuicClientWrapper::QuicClientWrapper() 
+  : connected_(false), conn_(nullptr), ossl_ctx_(nullptr), 
+    ssl_ctx_(nullptr), ssl_(nullptr), udp_fd_(-1) {
+  memset(&server_addr_, 0, sizeof(server_addr_));
+}
+
+QuicClientWrapper::~QuicClientWrapper() { 
+  disconnect(); 
+}
+
+bool QuicClientWrapper::parse_address(const std::string& address, std::string& host, int& port) {
+  size_t colon_pos = address.find(':');
+  if (colon_pos == std::string::npos) {
+    return false;
+  }
+  host = address.substr(0, colon_pos);
+  port = std::stoi(address.substr(colon_pos + 1));
+  return true;
+}
+
+bool QuicClientWrapper::create_udp_socket() {
+  udp_fd_ = socket(AF_INET, SOCK_DGRAM, 0);
+  if (udp_fd_ < 0) {
+    std::cerr << "Failed to create UDP socket: " << strerror(errno) << std::endl;
+    return false;
+  }
+  
+  // Set socket to non-blocking
+  int flags = fcntl(udp_fd_, F_GETFL, 0);
+  fcntl(udp_fd_, F_SETFL, flags | O_NONBLOCK);
+  
+  return true;
+}
+
+bool QuicClientWrapper::initialize_ngtcp2_connection() {
+  // Initialize OpenSSL if not already done
+  static bool ssl_initialized = false;
+  if (!ssl_initialized) {
+    SSL_library_init();
+    SSL_load_error_strings();
+    OpenSSL_add_all_algorithms();
+    ngtcp2_crypto_ossl_init();
+    ssl_initialized = true;
+  }
+  
+  // Create SSL context
+  ssl_ctx_ = SSL_CTX_new(TLS_client_method());
+  if (!ssl_ctx_) {
+    std::cerr << "Failed to create SSL context" << std::endl;
+    return false;
+  }
+  
+  // Configure for QUIC (no context-level config needed, session-level only)
+  
+  // Create SSL object
+  ssl_ = SSL_new(ssl_ctx_);
+  if (!ssl_) {
+    std::cerr << "Failed to create SSL object" << std::endl;
+    SSL_CTX_free(ssl_ctx_);
+    ssl_ctx_ = nullptr;
+    return false;
+  }
+  
+  // Create ngtcp2 crypto context
+  if (ngtcp2_crypto_ossl_ctx_new(&ossl_ctx_, ssl_) != 0) {
+    std::cerr << "Failed to create ngtcp2 crypto context" << std::endl;
+    SSL_free(ssl_);
+    SSL_CTX_free(ssl_ctx_);
+    ssl_ = nullptr;
+    ssl_ctx_ = nullptr;
+    return false;
+  }
+  
+  // Configure SSL session for QUIC
+  ngtcp2_crypto_ossl_configure_client_session(ssl_);
+  
+  // Set SSL to connect state
+  SSL_set_connect_state(ssl_);
+  
+  // Extract hostname from server address for SNI
+  std::string hostname = server_address_;
+  size_t colon_pos = hostname.find(':');
+  if (colon_pos != std::string::npos) {
+    hostname = hostname.substr(0, colon_pos);
+  }
+  SSL_set_tlsext_host_name(ssl_, hostname.c_str());
+  
+  // Create ngtcp2 connection
+  ngtcp2_cid dcid, scid;
+  
+  // Generate random connection IDs
+  uint8_t dcid_buf[NGTCP2_MAX_CIDLEN];
+  uint8_t scid_buf[NGTCP2_MAX_CIDLEN];
+  if (RAND_bytes(dcid_buf, NGTCP2_MAX_CIDLEN) != 1 ||
+      RAND_bytes(scid_buf, NGTCP2_MAX_CIDLEN) != 1) {
+    std::cerr << "Failed to generate connection IDs" << std::endl;
+    ngtcp2_crypto_ossl_ctx_del(ossl_ctx_);
+    SSL_free(ssl_);
+    SSL_CTX_free(ssl_ctx_);
+    ossl_ctx_ = nullptr;
+    ssl_ = nullptr;
+    ssl_ctx_ = nullptr;
+    return false;
+  }
+  
+  ngtcp2_cid_init(&dcid, dcid_buf, NGTCP2_MAX_CIDLEN);
+  ngtcp2_cid_init(&scid, scid_buf, NGTCP2_MAX_CIDLEN);
+  
+  // Set up path
+  ngtcp2_path_storage ps;
+  ngtcp2_path_storage_zero(&ps);
+  ngtcp2_path* path = &ps.path;
+  
+  // Initialize local address (will be set when sending)
+  struct sockaddr_in local_addr;
+  memset(&local_addr, 0, sizeof(local_addr));
+  local_addr.sin_family = AF_INET;
+  local_addr.sin_addr.s_addr = INADDR_ANY;
+  
+  path->local.addr = reinterpret_cast<ngtcp2_sockaddr*>(&local_addr);
+  path->local.addrlen = sizeof(local_addr);
+  path->remote.addr = reinterpret_cast<ngtcp2_sockaddr*>(&server_addr_);
+  path->remote.addrlen = sizeof(server_addr_);
+  
+  // Set up callbacks
+  ngtcp2_callbacks callbacks = {};
+  callbacks.client_initial = [](ngtcp2_conn *conn, void *user_data) -> int {
+    QuicClientWrapper* self = static_cast<QuicClientWrapper*>(user_data);
+    
+    // #region agent log
+    {
+      std::ofstream log_file("/home/tprettol/repo/Quicftp/.cursor/debug.log", std::ios::app);
+      if (log_file.is_open()) {
+        log_file << "{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"CLIENT-INIT-CB-ENTRY\",\"location\":\"quicftp_client.cc:client_initial\",\"message\":\"client_initial callback entered\",\"data\":{\"ossl_ctx_exists\":" << (self && self->ossl_ctx_ != nullptr) << ",\"ssl_exists\":" << (self && self->ssl_ != nullptr) << "},\"timestamp\":" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() << "}\n";
+        log_file.close();
+      }
+    }
+    // #endregion
+    
+    if (!self || !self->ossl_ctx_ || !self->ssl_) {
+      // #region agent log
+      {
+        std::ofstream log_file("/home/tprettol/repo/Quicftp/.cursor/debug.log", std::ios::app);
+        if (log_file.is_open()) {
+          log_file << "{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"CLIENT-INIT-CB-ERROR\",\"location\":\"quicftp_client.cc:client_initial\",\"message\":\"Invalid state in client_initial\",\"data\":{},\"timestamp\":" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() << "}\n";
+          log_file.close();
+        }
+      }
+      // #endregion
+      return NGTCP2_ERR_CALLBACK_FAILURE;
+    }
+    
+    // Set TLS native handle - must be done before crypto helper
+    ngtcp2_conn_set_tls_native_handle(conn, self->ossl_ctx_);
+    
+    // #region agent log
+    {
+      std::ofstream log_file("/home/tprettol/repo/Quicftp/.cursor/debug.log", std::ios::app);
+      if (log_file.is_open()) {
+        log_file << "{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"CLIENT-INIT-CB-BEFORE\",\"location\":\"quicftp_client.cc:client_initial\",\"message\":\"About to call crypto helper\",\"data\":{},\"timestamp\":" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() << "}\n";
+        log_file.close();
+      }
+    }
+    // #endregion
+    
+    // Call crypto helper
+    int rv = ngtcp2_crypto_client_initial_cb(conn, user_data);
+    
+    // #region agent log
+    {
+      std::ofstream log_file("/home/tprettol/repo/Quicftp/.cursor/debug.log", std::ios::app);
+      if (log_file.is_open()) {
+        log_file << "{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"CLIENT-INIT-CB-AFTER\",\"location\":\"quicftp_client.cc:client_initial\",\"message\":\"Crypto helper returned\",\"data\":{\"rv\":" << rv << "},\"timestamp\":" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() << "}\n";
+        log_file.close();
+      }
+    }
+    // #endregion
+    
+    return rv;
+  };
+  callbacks.recv_crypto_data = ngtcp2_crypto_recv_crypto_data_cb;
+  callbacks.encrypt = ngtcp2_crypto_encrypt;
+  callbacks.decrypt = ngtcp2_crypto_decrypt;
+  callbacks.hp_mask = ngtcp2_crypto_hp_mask;
+  callbacks.recv_retry = [](ngtcp2_conn *conn, const ngtcp2_pkt_hd *hd, void *user_data) -> int {
+    // Handle retry packet
+    return 0;
+  };
+  callbacks.rand = [](uint8_t *dest, size_t destlen, const ngtcp2_rand_ctx *rand_ctx) -> void {
+    // Generate random bytes using OpenSSL
+    RAND_bytes(dest, destlen);
+  };
+  callbacks.get_new_connection_id = [](ngtcp2_conn *conn, ngtcp2_cid *cid, uint8_t *token,
+                                       size_t cidlen, void *user_data) -> int {
+    // Generate new connection ID
+    uint8_t buf[NGTCP2_MAX_CIDLEN];
+    RAND_bytes(buf, cidlen);
+    ngtcp2_cid_init(cid, buf, cidlen);
+    return 0;
+  };
+  callbacks.remove_connection_id = nullptr;
+  callbacks.update_key = ngtcp2_crypto_update_key_cb;
+  callbacks.delete_crypto_aead_ctx = ngtcp2_crypto_delete_crypto_aead_ctx_cb;
+  callbacks.delete_crypto_cipher_ctx = ngtcp2_crypto_delete_crypto_cipher_ctx_cb;
+  callbacks.get_path_challenge_data = [](ngtcp2_conn *conn, uint8_t *data, void *user_data) -> int {
+    // Generate random data for path challenge
+    RAND_bytes(data, 8);
+    return 0;
+  };
+  callbacks.path_validation = nullptr;
+  callbacks.select_preferred_addr = nullptr;
+  callbacks.version_negotiation = nullptr;
+  callbacks.extend_max_local_streams_bidi = nullptr;
+  callbacks.extend_max_local_streams_uni = nullptr;
+  callbacks.recv_stream_data = nullptr;
+  callbacks.acked_stream_data_offset = nullptr;
+  callbacks.stream_open = nullptr;
+  callbacks.stream_close = nullptr;
+  callbacks.stream_reset = nullptr;
+  
+  // Set up settings
+  ngtcp2_settings settings;
+  ngtcp2_settings_default(&settings);
+  settings.log_printf = nullptr;
+  
+  // Set up transport parameters
+  ngtcp2_transport_params params;
+  ngtcp2_transport_params_default(&params);
+  params.initial_max_stream_data_bidi_local = 128 * 1024;
+  params.initial_max_stream_data_bidi_remote = 128 * 1024;
+  params.initial_max_stream_data_uni = 128 * 1024;
+  params.initial_max_data = 1 * 1024 * 1024;
+  
+  // Create connection (client_initial callback will be invoked during this)
+  int rv = ngtcp2_conn_client_new(&conn_, &dcid, &scid, path, NGTCP2_PROTO_VER_V1,
+                                  &callbacks, &settings, &params, nullptr, this);
+  if (rv != 0) {
+    std::cerr << "Failed to create ngtcp2 connection: " << ngtcp2_strerror(rv) << std::endl;
+    ngtcp2_crypto_ossl_ctx_del(ossl_ctx_);
+    SSL_free(ssl_);
+    SSL_CTX_free(ssl_ctx_);
+    ossl_ctx_ = nullptr;
+    ssl_ = nullptr;
+    ssl_ctx_ = nullptr;
+    return false;
+  }
+  
+  // TLS native handle is set in client_initial callback, so don't set it here
+  
+  // #region agent log
+  {
+    std::ofstream log_file("/home/tprettol/repo/Quicftp/.cursor/debug.log", std::ios::app);
+    if (log_file.is_open()) {
+      log_file << "{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"CLIENT-INIT\",\"location\":\"quicftp_client.cc:initialize_ngtcp2_connection\",\"message\":\"ngtcp2 connection created\",\"data\":{\"conn_exists\":" << (conn_ != nullptr) << ",\"ssl_exists\":" << (ssl_ != nullptr) << "},\"timestamp\":" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() << "}\n";
+      log_file.close();
+    }
+  }
+  // #endregion
+  
+  return true;
+}
 
 bool QuicClientWrapper::connect(const std::string& server_address) {
   server_address_ = server_address;
-  // TODO: Establish QUIC connection
+  
+  // Parse server address
+  std::string host;
+  int port;
+  if (!parse_address(server_address, host, port)) {
+    std::cerr << "Invalid server address format (expected host:port): " << server_address << std::endl;
+    return false;
+  }
+  
+  // Resolve server address
+  server_addr_.sin_family = AF_INET;
+  server_addr_.sin_port = htons(port);
+  if (inet_pton(AF_INET, host.c_str(), &server_addr_.sin_addr) <= 0) {
+    std::cerr << "Failed to parse server address: " << host << std::endl;
+    return false;
+  }
+  
+  // Create UDP socket
+  if (!create_udp_socket()) {
+    return false;
+  }
+  
+  // Initialize ngtcp2 connection
+  if (!initialize_ngtcp2_connection()) {
+    close(udp_fd_);
+    udp_fd_ = -1;
+    return false;
+  }
+  
+  // Send initial packet to start handshake
+  if (!send_initial_packet()) {
+    disconnect();
+    return false;
+  }
+  
+  // #region agent log
+  {
+    std::ofstream log_file("/home/tprettol/repo/Quicftp/.cursor/debug.log", std::ios::app);
+    if (log_file.is_open()) {
+      log_file << "{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"CLIENT-CONN\",\"location\":\"quicftp_client.cc:connect\",\"message\":\"Client connection established and initial packet sent\",\"data\":{\"server\":\"" << server_address << "\",\"udp_fd\":" << udp_fd_ << "},\"timestamp\":" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() << "}\n";
+      log_file.close();
+    }
+  }
+  // #endregion
+  
   connected_ = true;
+  return true;
+}
+
+bool QuicClientWrapper::send_initial_packet() {
+  if (!conn_ || udp_fd_ < 0) {
+    return false;
+  }
+  
+  // Set up path
+  ngtcp2_path_storage ps;
+  ngtcp2_path_storage_zero(&ps);
+  ngtcp2_path* path = &ps.path;
+  
+  struct sockaddr_in local_addr;
+  socklen_t local_len = sizeof(local_addr);
+  if (getsockname(udp_fd_, reinterpret_cast<struct sockaddr*>(&local_addr), &local_len) < 0) {
+    memset(&local_addr, 0, sizeof(local_addr));
+    local_addr.sin_family = AF_INET;
+    local_addr.sin_addr.s_addr = INADDR_ANY;
+  }
+  
+  path->local.addr = reinterpret_cast<ngtcp2_sockaddr*>(&local_addr);
+  path->local.addrlen = sizeof(local_addr);
+  path->remote.addr = reinterpret_cast<ngtcp2_sockaddr*>(&server_addr_);
+  path->remote.addrlen = sizeof(server_addr_);
+  
+  // Get current timestamp
+  auto now = std::chrono::steady_clock::now();
+  auto duration = now.time_since_epoch();
+  ngtcp2_tstamp ts = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+  
+  // Write initial packet - may need to send multiple packets
+  uint8_t pkt_buf[65536];
+  ngtcp2_pkt_info pi;
+  
+  // Send packets until no more to send
+  bool sent_any = false;
+  while (true) {
+    ngtcp2_ssize nwrite = ngtcp2_conn_write_pkt(conn_, path, &pi, pkt_buf, sizeof(pkt_buf), ts);
+    
+    if (nwrite < 0) {
+      if (nwrite == NGTCP2_ERR_WRITE_MORE) {
+        // More data to write, continue
+        continue;
+      }
+      if (!sent_any) {
+        std::cerr << "Failed to write initial packet: " << ngtcp2_strerror(nwrite) << std::endl;
+        return false;
+      }
+      break; // No more packets
+    }
+    
+    if (nwrite == 0) {
+      break; // No packet to send
+    }
+    
+    // Send packet via UDP
+    ssize_t nsent = sendto(udp_fd_, pkt_buf, nwrite, 0,
+                          reinterpret_cast<struct sockaddr*>(&server_addr_),
+                          sizeof(server_addr_));
+    
+    if (nsent < 0) {
+      std::cerr << "Failed to send initial packet: " << strerror(errno) << std::endl;
+      if (!sent_any) {
+        return false;
+      }
+      break;
+    }
+    
+    sent_any = true;
+    
+    // #region agent log
+    {
+      std::ofstream log_file("/home/tprettol/repo/Quicftp/.cursor/debug.log", std::ios::app);
+      if (log_file.is_open()) {
+        log_file << "{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"CLIENT-HANDSHAKE\",\"location\":\"quicftp_client.cc:send_initial_packet\",\"message\":\"Initial QUIC packet sent\",\"data\":{\"packet_size\":" << nsent << "},\"timestamp\":" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() << "}\n";
+        log_file.close();
+      }
+    }
+    // #endregion
+  }
+  
+  return sent_any;
+}
+
+bool QuicClientWrapper::process_incoming_packets() {
+  if (!conn_ || udp_fd_ < 0) {
+    return false;
+  }
+  
+  uint8_t buf[65536];
+  struct sockaddr_in from_addr;
+  socklen_t from_len = sizeof(from_addr);
+  
+  while (true) {
+    ssize_t nread = recvfrom(udp_fd_, buf, sizeof(buf), 0,
+                            reinterpret_cast<struct sockaddr*>(&from_addr), &from_len);
+    
+    if (nread < 0) {
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        break; // No more data
+      }
+      return false;
+    }
+    
+    // Set up path
+    ngtcp2_path_storage ps;
+    ngtcp2_path_storage_zero(&ps);
+    ngtcp2_path* path = &ps.path;
+    
+    struct sockaddr_in local_addr;
+    socklen_t local_len = sizeof(local_addr);
+    if (getsockname(udp_fd_, reinterpret_cast<struct sockaddr*>(&local_addr), &local_len) < 0) {
+      memset(&local_addr, 0, sizeof(local_addr));
+      local_addr.sin_family = AF_INET;
+      local_addr.sin_addr.s_addr = INADDR_ANY;
+    }
+    
+    path->local.addr = reinterpret_cast<ngtcp2_sockaddr*>(&local_addr);
+    path->local.addrlen = sizeof(local_addr);
+    path->remote.addr = reinterpret_cast<ngtcp2_sockaddr*>(&from_addr);
+    path->remote.addrlen = sizeof(from_addr);
+    
+    // Process packet
+    ngtcp2_pkt_info pi;
+    pi.ecn = NGTCP2_ECN_NOT_ECT;
+    
+    auto now = std::chrono::steady_clock::now();
+    auto duration = now.time_since_epoch();
+    ngtcp2_tstamp ts = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+    
+    ngtcp2_ssize nread_processed = ngtcp2_conn_read_pkt(conn_, path, &pi, buf, nread, ts);
+    
+    if (nread_processed < 0) {
+      std::cerr << "Failed to process packet: " << ngtcp2_strerror(nread_processed) << std::endl;
+      continue;
+    }
+    
+    // #region agent log
+    {
+      std::ofstream log_file("/home/tprettol/repo/Quicftp/.cursor/debug.log", std::ios::app);
+      if (log_file.is_open()) {
+        log_file << "{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"CLIENT-RECV\",\"location\":\"quicftp_client.cc:process_incoming_packets\",\"message\":\"Processed incoming packet\",\"data\":{\"packet_size\":" << nread << "},\"timestamp\":" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() << "}\n";
+        log_file.close();
+      }
+    }
+    // #endregion
+    
+    // Send any pending packets (handshake responses)
+    send_pending_packets();
+  }
+  
+  return true;
+}
+
+bool QuicClientWrapper::send_pending_packets() {
+  if (!conn_ || udp_fd_ < 0) {
+    return false;
+  }
+  
+  // Set up path
+  ngtcp2_path_storage ps;
+  ngtcp2_path_storage_zero(&ps);
+  ngtcp2_path* path = &ps.path;
+  
+  struct sockaddr_in local_addr;
+  socklen_t local_len = sizeof(local_addr);
+  if (getsockname(udp_fd_, reinterpret_cast<struct sockaddr*>(&local_addr), &local_len) < 0) {
+    memset(&local_addr, 0, sizeof(local_addr));
+    local_addr.sin_family = AF_INET;
+    local_addr.sin_addr.s_addr = INADDR_ANY;
+  }
+  
+  path->local.addr = reinterpret_cast<ngtcp2_sockaddr*>(&local_addr);
+  path->local.addrlen = sizeof(local_addr);
+  path->remote.addr = reinterpret_cast<ngtcp2_sockaddr*>(&server_addr_);
+  path->remote.addrlen = sizeof(server_addr_);
+  
+  auto now = std::chrono::steady_clock::now();
+  auto duration = now.time_since_epoch();
+  ngtcp2_tstamp ts = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+  
+  uint8_t pkt_buf[65536];
+  ngtcp2_pkt_info pi;
+  
+  // Send packets until no more to send
+  while (true) {
+    ngtcp2_ssize nwrite = ngtcp2_conn_write_pkt(conn_, path, &pi, pkt_buf, sizeof(pkt_buf), ts);
+    
+    if (nwrite < 0) {
+      if (nwrite == NGTCP2_ERR_WRITE_MORE) {
+        // More data to write, continue
+        continue;
+      }
+      break; // No more packets or error
+    }
+    
+    // Send packet
+    ssize_t nsent = sendto(udp_fd_, pkt_buf, nwrite, 0,
+                          reinterpret_cast<struct sockaddr*>(&server_addr_),
+                          sizeof(server_addr_));
+    
+    if (nsent < 0) {
+      break;
+    }
+  }
+  
   return true;
 }
 
 bool QuicClientWrapper::authenticate(const std::string& cert_path) {
   cert_path_ = cert_path;
+  // Process incoming packets to continue handshake
+  process_incoming_packets();
   // TODO: Perform certificate-based authentication
   return true;
 }
 
 void QuicClientWrapper::disconnect() {
   if (connected_) {
-    // TODO: Close QUIC connection
+    if (conn_) {
+      ngtcp2_conn_del(conn_);
+      conn_ = nullptr;
+    }
+    if (ssl_) {
+      SSL_free(ssl_);
+      ssl_ = nullptr;
+    }
+    if (ossl_ctx_) {
+      ngtcp2_crypto_ossl_ctx_del(ossl_ctx_);
+      ossl_ctx_ = nullptr;
+    }
+    if (ssl_ctx_) {
+      SSL_CTX_free(ssl_ctx_);
+      ssl_ctx_ = nullptr;
+    }
+    if (udp_fd_ >= 0) {
+      close(udp_fd_);
+      udp_fd_ = -1;
+    }
     connected_ = false;
   }
 }
@@ -69,17 +629,125 @@ bool QuicClientWrapper::is_connected() const {
 }
 
 bool QuicClientWrapper::create_stream(StreamId& stream_id) {
-  if (!connected_) return false;
-  // TODO: Create QUIC stream
-  static StreamId next_id = 1;
-  stream_id = next_id++;
+  if (!connected_ || !conn_) return false;
+  
+  // Process incoming packets to continue handshake if needed
+  process_incoming_packets();
+  
+  // Open bidirectional stream
+  int64_t ngtcp2_stream_id;
+  int rv = ngtcp2_conn_open_bidi_stream(conn_, &ngtcp2_stream_id, nullptr);
+  if (rv != 0) {
+    // If stream blocked, try processing more packets
+    if (rv == NGTCP2_ERR_STREAM_ID_BLOCKED) {
+      process_incoming_packets();
+      send_pending_packets();
+      // Retry once
+      rv = ngtcp2_conn_open_bidi_stream(conn_, &ngtcp2_stream_id, nullptr);
+    }
+    if (rv != 0) {
+      std::cerr << "Failed to open QUIC stream: " << ngtcp2_strerror(rv) << std::endl;
+      return false;
+    }
+  }
+  
+  stream_id = static_cast<StreamId>(ngtcp2_stream_id);
+  
+  // #region agent log
+  {
+    std::ofstream log_file("/home/tprettol/repo/Quicftp/.cursor/debug.log", std::ios::app);
+    if (log_file.is_open()) {
+      log_file << "{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"CLIENT-STREAM\",\"location\":\"quicftp_client.cc:create_stream\",\"message\":\"QUIC stream created\",\"data\":{\"stream_id\":" << stream_id << "},\"timestamp\":" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() << "}\n";
+      log_file.close();
+    }
+  }
+  // #endregion
+  
   return true;
 }
 
 bool QuicClientWrapper::send_data(StreamId stream_id, const uint8_t* data, size_t len) {
-  if (!connected_) return false;
-  // Test mode: Send data via test bridge
-  return TestBridge::instance().send_to_server(server_address_, stream_id, data, len);
+  if (!connected_ || !conn_ || udp_fd_ < 0) {
+    // Fallback to TestBridge if QUIC not ready
+    return TestBridge::instance().send_to_server(server_address_, stream_id, data, len);
+  }
+  
+  // Process incoming packets to continue handshake if needed
+  process_incoming_packets();
+  
+  // #region agent log
+  {
+    std::ofstream log_file("/home/tprettol/repo/Quicftp/.cursor/debug.log", std::ios::app);
+    if (log_file.is_open()) {
+      log_file << "{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"CLIENT-SEND\",\"location\":\"quicftp_client.cc:send_data\",\"message\":\"Sending data via QUIC\",\"data\":{\"stream_id\":" << stream_id << ",\"len\":" << len << ",\"conn_exists\":" << (conn_ != nullptr) << "},\"timestamp\":" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() << "}\n";
+      log_file.close();
+    }
+  }
+  // #endregion
+  
+  // Set up path
+  ngtcp2_path_storage ps;
+  ngtcp2_path_storage_zero(&ps);
+  ngtcp2_path* path = &ps.path;
+  
+  struct sockaddr_in local_addr;
+  socklen_t local_len = sizeof(local_addr);
+  if (getsockname(udp_fd_, reinterpret_cast<struct sockaddr*>(&local_addr), &local_len) < 0) {
+    memset(&local_addr, 0, sizeof(local_addr));
+    local_addr.sin_family = AF_INET;
+    local_addr.sin_addr.s_addr = INADDR_ANY;
+  }
+  
+  path->local.addr = reinterpret_cast<ngtcp2_sockaddr*>(&local_addr);
+  path->local.addrlen = sizeof(local_addr);
+  path->remote.addr = reinterpret_cast<ngtcp2_sockaddr*>(&server_addr_);
+  path->remote.addrlen = sizeof(server_addr_);
+  
+  // Prepare data vector
+  ngtcp2_vec datav;
+  datav.base = const_cast<uint8_t*>(data);
+  datav.len = len;
+  
+  // Get current timestamp
+  auto now = std::chrono::steady_clock::now();
+  auto duration = now.time_since_epoch();
+  ngtcp2_tstamp ts = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+  
+  // Write stream data to packet
+  uint8_t pkt_buf[65536];
+  ngtcp2_pkt_info pi;
+  ngtcp2_ssize datalen = 0;
+  
+  ngtcp2_ssize nwrite = ngtcp2_conn_writev_stream(conn_, path, &pi, pkt_buf, sizeof(pkt_buf),
+                                                   &datalen, NGTCP2_WRITE_STREAM_FLAG_MORE,
+                                                   stream_id, &datav, 1, ts);
+  
+  if (nwrite < 0) {
+    std::cerr << "Failed to write stream data: " << ngtcp2_strerror(nwrite) << std::endl;
+    return false;
+  }
+  
+  // Send packet via UDP
+  ssize_t nsent = sendto(udp_fd_, pkt_buf, nwrite, 0,
+                        reinterpret_cast<struct sockaddr*>(&server_addr_),
+                        sizeof(server_addr_));
+  
+  if (nsent < 0) {
+    std::cerr << "Failed to send UDP packet: " << strerror(errno) << std::endl;
+    return false;
+  }
+  
+  // #region agent log
+  {
+    std::ofstream log_file("/home/tprettol/repo/Quicftp/.cursor/debug.log", std::ios::app);
+    if (log_file.is_open()) {
+      log_file << "{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"CLIENT-SEND\",\"location\":\"quicftp_client.cc:send_data\",\"message\":\"QUIC packet sent\",\"data\":{\"stream_id\":" << stream_id << ",\"packet_size\":" << nsent << ",\"data_len\":" << len << "},\"timestamp\":" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() << "}\n";
+      log_file.close();
+    }
+  }
+  // #endregion
+  
+  return true;
 }
 
 bool QuicClientWrapper::receive_data(StreamId stream_id, std::function<bool(const uint8_t*, size_t)> callback) {

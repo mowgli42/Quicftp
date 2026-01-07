@@ -309,6 +309,9 @@ quicftpserver
  /usr/lib/libcrypto.so
  /usr/lib/libm.so.6
  /usr/lib/libmvec.so.1
+ /usr/lib/libnghttp3.so
+ /usr/lib/libngtcp2.so
+ /usr/lib/libngtcp2_crypto_ossl.so
  /usr/lib/libssl.so
  /home/tprettol/repo/Quicftp/build/CMakeFiles/quicftpserver.dir/quicftpserver-cli.cc.o
  /home/tprettol/repo/Quicftp/build/libquicftp_server.a

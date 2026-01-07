@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/home/tprettol/repo/Quicftp
+CXX_INCLUDES = -I/home/tprettol/repo/Quicftp -I/usr/include/ngtcp2 -I/usr/include/nghttp3
 
 CXX_FLAGS = -std=gnu++17
 

@@ -272,6 +272,9 @@ quicftpclient: /usr/lib/Scrt1.o \
   /usr/lib/libcrypto.so \
   /usr/lib/libm.so.6 \
   /usr/lib/libmvec.so.1 \
+  /usr/lib/libnghttp3.so \
+  /usr/lib/libngtcp2.so \
+  /usr/lib/libngtcp2_crypto_ossl.so \
   /usr/lib/libssl.so \
   CMakeFiles/quicftpclient.dir/quicftpclient-cli.cc.o \
   libquicftp_client.a
@@ -280,6 +283,8 @@ quicftpclient: /usr/lib/Scrt1.o \
 libquicftp_client.a:
 
 CMakeFiles/quicftpclient.dir/quicftpclient-cli.cc.o:
+
+/usr/lib/libnghttp3.so:
 
 /usr/lib/libmvec.so.1:
 
@@ -402,6 +407,8 @@ CMakeFiles/quicftpclient.dir/quicftpclient-cli.cc.o:
 /usr/lib/Scrt1.o:
 
 /usr/include/c++/15.2.1/bits/char_traits.h:
+
+/usr/lib/libngtcp2.so:
 
 /usr/include/bits/types/struct_tm.h:
 
@@ -548,6 +555,8 @@ CMakeFiles/quicftpclient.dir/quicftpclient-cli.cc.o:
 /usr/include/stdc-predef.h:
 
 /usr/include/c++/15.2.1/bits/hashtable.h:
+
+/usr/lib/libngtcp2_crypto_ossl.so:
 
 /usr/include/bits/floatn.h:
 

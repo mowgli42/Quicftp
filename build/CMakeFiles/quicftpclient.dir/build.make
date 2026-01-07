@@ -99,6 +99,9 @@ quicftpclient: CMakeFiles/quicftpclient.dir/compiler_depend.ts
 quicftpclient: libquicftp_client.a
 quicftpclient: /usr/lib/libssl.so
 quicftpclient: /usr/lib/libcrypto.so
+quicftpclient: /usr/lib/libngtcp2.so
+quicftpclient: /usr/lib/libngtcp2_crypto_ossl.so
+quicftpclient: /usr/lib/libnghttp3.so
 quicftpclient: CMakeFiles/quicftpclient.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/tprettol/repo/Quicftp/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable quicftpclient"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/quicftpclient.dir/link.txt --verbose=$(VERBOSE)

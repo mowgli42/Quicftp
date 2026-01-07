@@ -6,6 +6,9 @@ quicftpserver: \
   libquicftp_server.a \
   /usr/lib/libssl.so \
   /usr/lib/libcrypto.so \
+  /usr/lib/libngtcp2.so \
+  /usr/lib/libngtcp2_crypto_ossl.so \
+  /usr/lib/libnghttp3.so \
   /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../lib/libstdc++.so \
   /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../lib/libm.so \
   /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../lib/libm.so \
@@ -47,6 +50,12 @@ libquicftp_server.a:
 /usr/lib/libssl.so:
 
 /usr/lib/libcrypto.so:
+
+/usr/lib/libngtcp2.so:
+
+/usr/lib/libngtcp2_crypto_ossl.so:
+
+/usr/lib/libnghttp3.so:
 
 /usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../lib/libstdc++.so:
 

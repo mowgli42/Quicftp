@@ -307,10 +307,15 @@ quicftpserver: /usr/lib/Scrt1.o \
   /usr/lib/libcrypto.so \
   /usr/lib/libm.so.6 \
   /usr/lib/libmvec.so.1 \
+  /usr/lib/libnghttp3.so \
+  /usr/lib/libngtcp2.so \
+  /usr/lib/libngtcp2_crypto_ossl.so \
   /usr/lib/libssl.so \
   CMakeFiles/quicftpserver.dir/quicftpserver-cli.cc.o \
   libquicftp_server.a
 
+
+/usr/lib/libnghttp3.so:
 
 /usr/lib/libmvec.so.1:
 
@@ -423,6 +428,8 @@ quicftpserver: /usr/lib/Scrt1.o \
 /usr/include/stdc-predef.h:
 
 /usr/include/c++/15.2.1/bits/stl_tempbuf.h:
+
+/usr/lib/libngtcp2.so:
 
 /usr/include/bits/types/struct_tm.h:
 
@@ -595,6 +602,8 @@ libquicftp_server.a:
 /usr/include/asm-generic/posix_types.h:
 
 /usr/include/c++/15.2.1/bits/unique_lock.h:
+
+/usr/lib/libngtcp2_crypto_ossl.so:
 
 /usr/include/bits/floatn.h:
 

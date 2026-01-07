@@ -1730,3 +1730,256 @@ events:
         
       exitCode: 0
 ...
+
+---
+events:
+  -
+    kind: "find-v1"
+    backtrace:
+      - "CMakeLists.txt:77 (find_library)"
+    mode: "library"
+    variable: "NGTCP2_LIB"
+    description: "Path to a library."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "ngtcp2"
+    candidate_directories:
+      - "/home/tprettol/.local/share/mise/installs/node/25.1.0/bin/"
+      - "/home/tprettol/.local/share/mise/installs/python/3.14.2/bin/"
+      - "/home/tprettol/.local/share/omarchy/bin/"
+      - "/home/tprettol/.local/bin/"
+      - "/usr/local/sbin/"
+      - "/usr/local/bin/"
+      - "/usr/bin/"
+      - "/usr/lib/jvm/default/bin/"
+      - "/usr/bin/site_perl/"
+      - "/usr/bin/vendor_perl/"
+      - "/usr/bin/core_perl/"
+      - "/usr/local/lib/"
+      - "/usr/local/"
+      - "/usr/lib/"
+      - "/usr/"
+      - "/lib/"
+      - "/usr/X11R6/lib/"
+      - "/usr/X11R6/"
+      - "/usr/pkg/lib/"
+      - "/usr/pkg/"
+      - "/opt/lib/"
+      - "/opt/"
+      - "/usr/lib/X11/"
+      - "/usr/lib/"
+      - "/usr/local/lib/"
+    searched_directories:
+      - "/home/tprettol/.local/share/mise/installs/node/25.1.0/bin/"
+      - "/home/tprettol/.local/share/mise/installs/python/3.14.2/bin/"
+      - "/home/tprettol/.local/share/omarchy/bin/"
+      - "/home/tprettol/.local/bin/"
+      - "/usr/local/sbin/"
+      - "/usr/local/bin/"
+      - "/usr/bin/"
+      - "/usr/lib/jvm/default/bin/"
+      - "/usr/bin/site_perl/"
+      - "/usr/bin/vendor_perl/"
+      - "/usr/bin/core_perl/"
+      - "/usr/local/lib/"
+      - "/usr/local/"
+    found: "/usr/lib/libngtcp2.so"
+    search_context:
+      ENV{PATH}:
+        - "/home/tprettol/.local/share/mise/installs/node/25.1.0/bin"
+        - "/home/tprettol/.local/share/mise/installs/python/3.14.2/bin"
+        - "/home/tprettol/.local/share/omarchy/bin"
+        - "/home/tprettol/.local/share/../bin"
+        - "/usr/local/sbin"
+        - "/usr/local/bin"
+        - "/usr/bin"
+        - "/usr/lib/jvm/default/bin"
+        - "/usr/bin/site_perl"
+        - "/usr/bin/vendor_perl"
+        - "/usr/bin/core_perl"
+      CMAKE_INSTALL_PREFIX: "/usr/local"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "/usr/local"
+        - "/usr"
+        - "/"
+        - "/usr"
+        - "/usr/local"
+        - "/usr/X11R6"
+        - "/usr/pkg"
+        - "/opt"
+      CMAKE_SYSTEM_LIBRARY_PATH:
+        - "/usr/lib/X11"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "CMakeLists.txt:78 (find_library)"
+    mode: "library"
+    variable: "NGTCP2_CRYPTO_OSSL_LIB"
+    description: "Path to a library."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "ngtcp2_crypto_ossl"
+    candidate_directories:
+      - "/home/tprettol/.local/share/mise/installs/node/25.1.0/bin/"
+      - "/home/tprettol/.local/share/mise/installs/python/3.14.2/bin/"
+      - "/home/tprettol/.local/share/omarchy/bin/"
+      - "/home/tprettol/.local/bin/"
+      - "/usr/local/sbin/"
+      - "/usr/local/bin/"
+      - "/usr/bin/"
+      - "/usr/lib/jvm/default/bin/"
+      - "/usr/bin/site_perl/"
+      - "/usr/bin/vendor_perl/"
+      - "/usr/bin/core_perl/"
+      - "/usr/local/lib/"
+      - "/usr/local/"
+      - "/usr/lib/"
+      - "/usr/"
+      - "/lib/"
+      - "/usr/X11R6/lib/"
+      - "/usr/X11R6/"
+      - "/usr/pkg/lib/"
+      - "/usr/pkg/"
+      - "/opt/lib/"
+      - "/opt/"
+      - "/usr/lib/X11/"
+      - "/usr/lib/"
+      - "/usr/local/lib/"
+    searched_directories:
+      - "/home/tprettol/.local/share/mise/installs/node/25.1.0/bin/"
+      - "/home/tprettol/.local/share/mise/installs/python/3.14.2/bin/"
+      - "/home/tprettol/.local/share/omarchy/bin/"
+      - "/home/tprettol/.local/bin/"
+      - "/usr/local/sbin/"
+      - "/usr/local/bin/"
+      - "/usr/bin/"
+      - "/usr/lib/jvm/default/bin/"
+      - "/usr/bin/site_perl/"
+      - "/usr/bin/vendor_perl/"
+      - "/usr/bin/core_perl/"
+      - "/usr/local/lib/"
+      - "/usr/local/"
+    found: "/usr/lib/libngtcp2_crypto_ossl.so"
+    search_context:
+      ENV{PATH}:
+        - "/home/tprettol/.local/share/mise/installs/node/25.1.0/bin"
+        - "/home/tprettol/.local/share/mise/installs/python/3.14.2/bin"
+        - "/home/tprettol/.local/share/omarchy/bin"
+        - "/home/tprettol/.local/share/../bin"
+        - "/usr/local/sbin"
+        - "/usr/local/bin"
+        - "/usr/bin"
+        - "/usr/lib/jvm/default/bin"
+        - "/usr/bin/site_perl"
+        - "/usr/bin/vendor_perl"
+        - "/usr/bin/core_perl"
+      CMAKE_INSTALL_PREFIX: "/usr/local"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "/usr/local"
+        - "/usr"
+        - "/"
+        - "/usr"
+        - "/usr/local"
+        - "/usr/X11R6"
+        - "/usr/pkg"
+        - "/opt"
+      CMAKE_SYSTEM_LIBRARY_PATH:
+        - "/usr/lib/X11"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "CMakeLists.txt:79 (find_library)"
+    mode: "library"
+    variable: "NGHTTP3_LIB"
+    description: "Path to a library."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "nghttp3"
+    candidate_directories:
+      - "/home/tprettol/.local/share/mise/installs/node/25.1.0/bin/"
+      - "/home/tprettol/.local/share/mise/installs/python/3.14.2/bin/"
+      - "/home/tprettol/.local/share/omarchy/bin/"
+      - "/home/tprettol/.local/bin/"
+      - "/usr/local/sbin/"
+      - "/usr/local/bin/"
+      - "/usr/bin/"
+      - "/usr/lib/jvm/default/bin/"
+      - "/usr/bin/site_perl/"
+      - "/usr/bin/vendor_perl/"
+      - "/usr/bin/core_perl/"
+      - "/usr/local/lib/"
+      - "/usr/local/"
+      - "/usr/lib/"
+      - "/usr/"
+      - "/lib/"
+      - "/usr/X11R6/lib/"
+      - "/usr/X11R6/"
+      - "/usr/pkg/lib/"
+      - "/usr/pkg/"
+      - "/opt/lib/"
+      - "/opt/"
+      - "/usr/lib/X11/"
+      - "/usr/lib/"
+      - "/usr/local/lib/"
+    searched_directories:
+      - "/home/tprettol/.local/share/mise/installs/node/25.1.0/bin/"
+      - "/home/tprettol/.local/share/mise/installs/python/3.14.2/bin/"
+      - "/home/tprettol/.local/share/omarchy/bin/"
+      - "/home/tprettol/.local/bin/"
+      - "/usr/local/sbin/"
+      - "/usr/local/bin/"
+      - "/usr/bin/"
+      - "/usr/lib/jvm/default/bin/"
+      - "/usr/bin/site_perl/"
+      - "/usr/bin/vendor_perl/"
+      - "/usr/bin/core_perl/"
+      - "/usr/local/lib/"
+      - "/usr/local/"
+    found: "/usr/lib/libnghttp3.so"
+    search_context:
+      ENV{PATH}:
+        - "/home/tprettol/.local/share/mise/installs/node/25.1.0/bin"
+        - "/home/tprettol/.local/share/mise/installs/python/3.14.2/bin"
+        - "/home/tprettol/.local/share/omarchy/bin"
+        - "/home/tprettol/.local/share/../bin"
+        - "/usr/local/sbin"
+        - "/usr/local/bin"
+        - "/usr/bin"
+        - "/usr/lib/jvm/default/bin"
+        - "/usr/bin/site_perl"
+        - "/usr/bin/vendor_perl"
+        - "/usr/bin/core_perl"
+      CMAKE_INSTALL_PREFIX: "/usr/local"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "/usr/local"
+        - "/usr"
+        - "/"
+        - "/usr"
+        - "/usr/local"
+        - "/usr/X11R6"
+        - "/usr/pkg"
+        - "/opt"
+      CMAKE_SYSTEM_LIBRARY_PATH:
+        - "/usr/lib/X11"
+...

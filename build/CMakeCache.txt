@@ -217,6 +217,15 @@ CMAKE_TAPI:FILEPATH=CMAKE_TAPI-NOTFOUND
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
 //Path to a library.
+NGHTTP3_LIB:FILEPATH=/usr/lib/libnghttp3.so
+
+//Path to a library.
+NGTCP2_CRYPTO_OSSL_LIB:FILEPATH=/usr/lib/libngtcp2_crypto_ossl.so
+
+//Path to a library.
+NGTCP2_LIB:FILEPATH=/usr/lib/libngtcp2.so
+
+//Path to a library.
 OPENSSL_CRYPTO_LIBRARY:FILEPATH=/usr/lib/libcrypto.so
 
 //Path to a file.
