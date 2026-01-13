@@ -206,6 +206,7 @@ CMakeFiles/quicftp_client.dir/quicftp_client.cc.o: \
  /usr/include/asm-generic/sockios.h \
  /usr/include/bits/types/struct_osockaddr.h /usr/include/netinet/in.h \
  /usr/include/bits/in.h /usr/include/ngtcp2/version.h \
+ /usr/include/ngtcp2/ngtcp2_crypto.h \
  /usr/include/ngtcp2/ngtcp2_crypto_ossl.h /usr/include/openssl/ssl.h \
  /usr/include/openssl/macros.h /usr/include/openssl/opensslconf.h \
  /usr/include/openssl/configuration.h /usr/include/openssl/opensslv.h \
@@ -247,18 +248,17 @@ CMakeFiles/quicftp_client.dir/quicftp_client.cc.o: \
  /usr/include/openssl/prov_ssl.h /usr/include/openssl/ssl2.h \
  /usr/include/openssl/ssl3.h /usr/include/openssl/tls1.h \
  /usr/include/openssl/dtls1.h /usr/include/openssl/srtp.h \
- /usr/include/openssl/quic.h /usr/include/ngtcp2/ngtcp2_crypto.h \
- /usr/include/openssl/err.h /usr/include/openssl/rand.h \
- /usr/include/openssl/randerr.h /usr/include/arpa/inet.h \
- /usr/include/unistd.h /usr/include/bits/posix_opt.h \
- /usr/include/bits/environments.h /usr/include/bits/confname.h \
- /usr/include/bits/getopt_posix.h /usr/include/bits/getopt_core.h \
- /usr/include/bits/unistd_ext.h /usr/include/linux/close_range.h \
- /usr/include/fcntl.h /usr/include/bits/fcntl.h \
- /usr/include/bits/fcntl-linux.h /usr/include/linux/falloc.h \
- /usr/include/bits/stat.h /usr/include/bits/struct_stat.h \
- /usr/include/c++/15.2.1/iostream /usr/include/c++/15.2.1/filesystem \
- /usr/include/c++/15.2.1/bits/fs_fwd.h \
+ /usr/include/openssl/quic.h /usr/include/openssl/err.h \
+ /usr/include/openssl/rand.h /usr/include/openssl/randerr.h \
+ /usr/include/arpa/inet.h /usr/include/unistd.h \
+ /usr/include/bits/posix_opt.h /usr/include/bits/environments.h \
+ /usr/include/bits/confname.h /usr/include/bits/getopt_posix.h \
+ /usr/include/bits/getopt_core.h /usr/include/bits/unistd_ext.h \
+ /usr/include/linux/close_range.h /usr/include/fcntl.h \
+ /usr/include/bits/fcntl.h /usr/include/bits/fcntl-linux.h \
+ /usr/include/linux/falloc.h /usr/include/bits/stat.h \
+ /usr/include/bits/struct_stat.h /usr/include/c++/15.2.1/iostream \
+ /usr/include/c++/15.2.1/filesystem /usr/include/c++/15.2.1/bits/fs_fwd.h \
  /usr/include/c++/15.2.1/bits/fs_path.h /usr/include/c++/15.2.1/locale \
  /usr/include/c++/15.2.1/bits/locale_facets_nonio.h \
  /usr/include/c++/15.2.1/x86_64-pc-linux-gnu/bits/time_members.h \

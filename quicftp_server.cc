@@ -12,7 +12,7 @@
 
 namespace quicftp {
 
-Server::Server() 
+Server::Server()
   : running_(false)
   , verbose_(true)
   , port_(0)

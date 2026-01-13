@@ -289,6 +289,7 @@ CMakeFiles/quicftp_server.dir/quic_wrapper.cc.o: /home/tprettol/repo/Quicftp/qui
   /usr/include/nghttp3/nghttp3.h \
   /usr/include/nghttp3/version.h \
   /usr/include/ngtcp2/ngtcp2.h \
+  /usr/include/ngtcp2/ngtcp2_crypto.h \
   /usr/include/ngtcp2/ngtcp2_crypto_ossl.h \
   /usr/include/ngtcp2/version.h \
   /usr/include/openssl/asn1.h \
@@ -343,6 +344,8 @@ CMakeFiles/quicftp_server.dir/quic_wrapper.cc.o: /home/tprettol/repo/Quicftp/qui
   /usr/include/openssl/pkcs7err.h \
   /usr/include/openssl/prov_ssl.h \
   /usr/include/openssl/quic.h \
+  /usr/include/openssl/rand.h \
+  /usr/include/openssl/randerr.h \
   /usr/include/openssl/rsa.h \
   /usr/include/openssl/rsaerr.h \
   /usr/include/openssl/safestack.h \
@@ -1249,6 +1252,8 @@ CMakeFiles/quicftp_server.dir/test_bridge.cc.o: /home/tprettol/repo/Quicftp/test
 
 /usr/include/openssl/rsaerr.h:
 
+/usr/include/openssl/rand.h:
+
 /usr/include/openssl/pkcs7.h:
 
 /usr/include/openssl/pemerr.h:
@@ -1316,6 +1321,8 @@ CMakeFiles/quicftp_server.dir/test_bridge.cc.o: /home/tprettol/repo/Quicftp/test
 /usr/include/ngtcp2/ngtcp2.h:
 
 /usr/include/unistd.h:
+
+/usr/include/openssl/randerr.h:
 
 /usr/include/nghttp3/nghttp3.h:
 
@@ -1464,6 +1471,8 @@ CMakeFiles/quicftp_server.dir/test_bridge.cc.o: /home/tprettol/repo/Quicftp/test
 /usr/include/c++/15.2.1/bits/sstream.tcc:
 
 /home/tprettol/repo/Quicftp/stream_manager.cc:
+
+/usr/include/ngtcp2/ngtcp2_crypto.h:
 
 /usr/include/bits/types/__fpos64_t.h:
 

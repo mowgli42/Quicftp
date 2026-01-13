@@ -52,7 +52,7 @@ if(BUILD_CLIENT)
         OpenSSL::Crypto
         Threads::Threads
         ${NGTCP2_LIB}
-        ${NGTCP2_CRYPTO_OSSL_LIB}
+        ${NGTCP2_CRYPTO_LIB}
         ${NGHTTP3_LIB}
     )
     
@@ -71,7 +71,7 @@ if(BUILD_SERVER)
         OpenSSL::Crypto
         Threads::Threads
         ${NGTCP2_LIB}
-        ${NGTCP2_CRYPTO_OSSL_LIB}
+        ${NGTCP2_CRYPTO_LIB}
         ${NGHTTP3_LIB}
     )
     

@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
    } else {
      // Multiple files - use parallel upload
      std::vector<std::pair<std::string, std::string>> file_pairs;
-     for(const auto& file : files) {
+   for(const auto& file : files) {
        file_pairs.push_back({file, file}); // local and remote same for now
      }
      if(!client.upload_files(file_pairs)) {
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
    } else {
      // Multiple files - use parallel download
      std::vector<std::pair<std::string, std::string>> file_pairs;
-     for(const auto& file : files) {
+   for(const auto& file : files) {
        file_pairs.push_back({file, file}); // remote and local same for now
      }
      if(!client.download_files(file_pairs)) {

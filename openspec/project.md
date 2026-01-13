@@ -8,9 +8,12 @@ Quicftp is a file transfer client library and CLI tool that enables file transfe
 - Support for multiple file transfers in a single session
 
 ## Tech Stack
-- **C++** (C++11 or later) - Primary language
-- **QUIC Protocol** - Network transport layer for file transfer
-- **Standard C++ Library** - Core dependencies (iostream, string, vector)
+- **C++** (C++17) - Primary language (C++17 required for filesystem support)
+- **ngtcp2** - QUIC protocol implementation library
+- **ngtcp2_crypto_ossl** - OpenSSL integration for ngtcp2
+- **nghttp3** - HTTP/3 layer library (optional, for stream management)
+- **OpenSSL** - TLS/crypto backend
+- **Standard C++ Library** - Core dependencies (iostream, string, vector, filesystem)
 - **TLS/Certificates** - Authentication mechanism (certificate-based)
 
 ## Project Conventions
@@ -52,11 +55,40 @@ Quicftp is a file transfer client library and CLI tool that enables file transfe
 
 ## Important Constraints
 - **MIT License**: Project is licensed under MIT License (Copyright 2023 mowgli42)
-- **C++ Standard**: Requires C++11 or later for standard library features
-- **QUIC Implementation**: Depends on a QUIC library (specific implementation to be determined)
+- **C++ Standard**: Requires C++17 for filesystem support and standard library features
+- **QUIC Implementation**: Uses ngtcp2 library for QUIC protocol implementation
 - **Certificate Requirements**: Requires valid TLS certificates for authentication
+- **Build System**: Uses CMake for dependency management and build configuration
+
+## Implementation Status
+
+### Completed Features
+- **QUIC/TLS Handshake**: Both client and server implement full QUIC/TLS handshake using ngtcp2
+  - Client: Initial packet sending, TLS handshake via ngtcp2 callbacks, packet reception
+  - Server: Initial packet reception, connection creation, TLS handshake processing, handshake response
+- **QUIC Library Integration**: ngtcp2 integrated with OpenSSL backend (ngtcp2_crypto_ossl)
+- **UDP Socket Management**: Non-blocking UDP sockets for QUIC packet transmission
+- **Certificate-Based Authentication**: TLS certificate loading and validation infrastructure
+- **Connection Management**: Basic connection lifecycle (connect, authenticate, disconnect)
+
+### In Progress
+- **File Transfer over QUIC Streams**: Stream creation and data transfer implementation
+- **Stream Multiplexing**: Multiple parallel file transfers
+- **Error Recovery**: Packet loss handling and retransmission
+
+### Planned Features
+- Stream prioritization
+- 0-RTT connection resumption
+- Connection migration
+- Flow control and congestion control
+- Path MTU discovery
+- Performance monitoring
+
+For detailed library information, see `QUIC_LIBRARY.md`. For feature requirements, see `openspec/specs/`.
 
 ## External Dependencies
-- **QUIC Library**: Specific QUIC implementation library (to be determined/selected)
-- **TLS/Crypto Library**: For certificate validation and encryption (likely provided by QUIC library)
-- **Standard C++ Library**: Core language features and containers
+- **ngtcp2**: QUIC protocol implementation library (C library)
+- **ngtcp2_crypto_ossl**: OpenSSL integration layer for ngtcp2
+- **nghttp3**: HTTP/3 layer library (optional, useful for stream management)
+- **OpenSSL**: TLS/crypto library for certificate validation and encryption
+- **Standard C++ Library**: Core language features and containers (C++17)

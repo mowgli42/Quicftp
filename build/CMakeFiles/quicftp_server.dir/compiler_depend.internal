@@ -290,6 +290,7 @@ CMakeFiles/quicftp_server.dir/quic_wrapper.cc.o
  /usr/include/nghttp3/nghttp3.h
  /usr/include/nghttp3/version.h
  /usr/include/ngtcp2/ngtcp2.h
+ /usr/include/ngtcp2/ngtcp2_crypto.h
  /usr/include/ngtcp2/ngtcp2_crypto_ossl.h
  /usr/include/ngtcp2/version.h
  /usr/include/openssl/asn1.h
@@ -344,6 +345,8 @@ CMakeFiles/quicftp_server.dir/quic_wrapper.cc.o
  /usr/include/openssl/pkcs7err.h
  /usr/include/openssl/prov_ssl.h
  /usr/include/openssl/quic.h
+ /usr/include/openssl/rand.h
+ /usr/include/openssl/randerr.h
  /usr/include/openssl/rsa.h
  /usr/include/openssl/rsaerr.h
  /usr/include/openssl/safestack.h
