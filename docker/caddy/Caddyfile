@@ -1,0 +1,32 @@
+{
+    # Enable HTTP/3 explicitly (though it's on by default in Caddy 2)
+    servers :443 {
+        protocol {
+            experimental_http3
+        }
+    }
+    
+    # Debug logging to see transfer details
+    log {
+        output stdout
+        level DEBUG
+    }
+}
+
+:443 {
+    # Use self-signed certs for internal testing
+    tls internal
+
+    # Handle file uploads via WebDAV
+    route /files/* {
+        webdav {
+            root /data/files
+            prefix /files
+        }
+    }
+
+    # Also allow standard GET downloads
+    file_server {
+        root /data/files
+    }
+}
