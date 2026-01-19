@@ -8,9 +8,11 @@
 #include <vector>
 #include <utility>
 #include <functional>
-#include "quic_common.h"
 
 namespace quicftp {
+
+// Callback type for progress updates: (file_path, bytes_transferred, total_bytes)
+using ProgressCallback = std::function<void(const std::string&, size_t, size_t)>;
 
 class Client {
 
@@ -19,31 +21,26 @@ public:
   Client();
   ~Client();
 
-  bool connect(const std::string& server);
+  // Configure connection (server URL like "https://127.0.0.1:443")
+  bool connect(const std::string& server_url);
   
-  bool authenticate(const std::string& cert_path);
+  // Configure authentication (client certificate path)
+  bool authenticate(const std::string& cert_path, const std::string& key_path = "");
 
-  bool login(const std::string& username, const std::string& password);
-
+  // Single file operations
   bool upload_file(const std::string& local_path, const std::string& remote_path);
-
   bool download_file(const std::string& remote_path, const std::string& local_path);
 
   // Parallel transfer methods
   bool upload_files(const std::vector<std::pair<std::string, std::string>>& files); // (local, remote) pairs
   bool download_files(const std::vector<std::pair<std::string, std::string>>& files); // (remote, local) pairs
 
-  // Progress and cancellation
-  void set_progress_callback(std::function<void(StreamId, size_t, size_t)> callback);
-  bool cancel_transfer(StreamId stream_id);
-
-  bool logout();
-
-  void disconnect();
+  // Configuration
+  void set_progress_callback(ProgressCallback callback);
+  void set_verbose(bool verbose);
 
 private:
 
-  // PIMPL idiom for implementation details
   class Impl;
   std::unique_ptr<Impl> impl_;
 

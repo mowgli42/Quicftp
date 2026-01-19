@@ -10,62 +10,49 @@
 int main(int argc, char *argv[]) {
 
  if(argc < 4) {
-   std::cerr << "Usage: " << argv[0] << " <server> <upload|download> <file1> [file2 ...] [cert_path]" << std::endl;
-   std::cerr << "  cert_path is optional (if ends with .pem/.crt or contains 'cert'), defaults to certs/client-cert.pem" << std::endl;
+   std::cerr << "Usage: " << argv[0] << " <server> <upload|download> <file1> [file2 ...] [cert_path] [key_path]" << std::endl;
+   std::cerr << "  server: e.g. 127.0.0.1:443" << std::endl;
+   std::cerr << "  cert_path: (optional) path to client certificate" << std::endl;
+   std::cerr << "  key_path: (optional) path to client key (if not part of cert)" << std::endl;
    return 1;
  }
 
  std::string server = argv[1];
  std::string mode = argv[2];
  std::vector<std::string> files;
- std::string cert_path = "certs/client-cert.pem"; // Default
+ std::string cert_path = "";
+ std::string key_path = "";
 
- // Parse arguments: files and optional cert path
- // If last arg looks like a cert path (ends with .pem or contains "cert"), use it as cert_path
- // Otherwise, all args from index 3 are files
+ // Simple argument parsing for trailing cert/key options
+ // Files are in the middle
  for(int i=3; i<argc; i++) {
    std::string arg = argv[i];
-   // Check if this looks like a certificate path
-   bool is_cert = (arg.find("cert") != std::string::npos) ||
-                  (arg.length() >= 4 && arg.substr(arg.length() - 4) == ".pem") ||
-                  (arg.length() >= 4 && arg.substr(arg.length() - 4) == ".crt");
-   if (is_cert) {
-     cert_path = arg;
+   // Heuristic: if it looks like a cert or key file, treat it as such
+   // This is a bit brittle but maintains partial compatibility with CLI style
+   if (arg.find(".pem") != std::string::npos || arg.find(".crt") != std::string::npos || arg.find(".key") != std::string::npos) {
+       if (cert_path.empty()) {
+           cert_path = arg;
+       } else if (key_path.empty()) {
+           key_path = arg;
+       }
    } else {
-     files.push_back(arg);
+       files.push_back(arg);
    }
  }
-
- // #region agent log
- {
-   std::ofstream log_file("/home/tprettol/repo/Quicftp/.cursor/debug.log", std::ios::app);
-   if (log_file.is_open()) {
-     log_file << "{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"A\",\"location\":\"quicftpclient-cli.cc:33\",\"message\":\"Parsed certificate path\",\"data\":{\"cert_path\":\"" << cert_path << "\",\"argc\":" << argc << "},\"timestamp\":" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() << "}\n";
-     log_file.close();
-   }
- }
- // #endregion
 
  quicftp::Client client;
+ client.set_verbose(true); // Enable verbose output for CLI
 
  if(!client.connect(server)) {
-   std::cerr << "Connection failed" << std::endl;
+   std::cerr << "Connection setup failed" << std::endl;
    return 1;
  }
 
- // Use certificate based auth
- // #region agent log
- {
-   std::ofstream log_file("/home/tprettol/repo/Quicftp/.cursor/debug.log", std::ios::app);
-   if (log_file.is_open()) {
-     log_file << "{\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"A\",\"location\":\"quicftpclient-cli.cc:50\",\"message\":\"About to call authenticate()\",\"data\":{\"cert_path\":\"" << cert_path << "\"},\"timestamp\":" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() << "}\n";
-     log_file.close();
-   }
- }
- // #endregion
- if(!client.authenticate(cert_path)) {
-   std::cerr << "Authentication failed" << std::endl;
-   return 1;
+ if(!cert_path.empty()) {
+    if(!client.authenticate(cert_path, key_path)) {
+        std::cerr << "Authentication setup failed" << std::endl;
+        return 1;
+    }
  }
 
  if(mode == "upload") {
@@ -78,7 +65,7 @@ int main(int argc, char *argv[]) {
    } else {
      // Multiple files - use parallel upload
      std::vector<std::pair<std::string, std::string>> file_pairs;
-   for(const auto& file : files) {
+     for(const auto& file : files) {
        file_pairs.push_back({file, file}); // local and remote same for now
      }
      if(!client.upload_files(file_pairs)) {
@@ -97,7 +84,7 @@ int main(int argc, char *argv[]) {
    } else {
      // Multiple files - use parallel download
      std::vector<std::pair<std::string, std::string>> file_pairs;
-   for(const auto& file : files) {
+     for(const auto& file : files) {
        file_pairs.push_back({file, file}); // remote and local same for now
      }
      if(!client.download_files(file_pairs)) {
@@ -105,9 +92,11 @@ int main(int argc, char *argv[]) {
        return 1;
      }
    }
+ } else {
+     std::cerr << "Unknown mode: " << mode << std::endl;
+     return 1;
  }
 
- client.disconnect();
-
+ // Client destructor handles cleanup (libcurl global cleanup)
  return 0;
 }
