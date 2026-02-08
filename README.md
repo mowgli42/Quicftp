@@ -26,11 +26,11 @@ Quicftp provides a C++ client library and command-line tools for file transfer o
 
 ## Setup & Building
 
-### 1. Build Client Dependencies
-We provide a script to build a custom `libcurl` with HTTP/3 support enabled (as most system packages don't have it yet).
+### 1. Build Client Dependencies (Optional)
+For full HTTP/3 (QUIC) support, build a custom `libcurl` with the HTTP/3 backend. If you skip this step, the project will build with your system libcurl and fall back to HTTP/2.
 
 ```bash
-# Build openssl, ngtcp2, nghttp3, and curl locally
+# Build openssl (quictls), ngtcp2, nghttp3, and curl locally
 ./scripts/build_curl_http3.sh
 ```
 
@@ -38,10 +38,21 @@ This will install dependencies into `deps/dist`.
 
 ### 2. Build the Project
 ```bash
-mkdir build
-cd build
-cmake ..
+mkdir build && cd build
+cmake -DCMAKE_CXX_COMPILER=g++ ..
 make
+```
+
+Example output:
+```
+-- Using system libcurl
+-- Found CURL: /usr/lib/x86_64-linux-gnu/libcurl.so (found version "8.5.0")
+-- Configuring done (0.2s)
+-- Generating done (0.0s)
+[ 25%] Building CXX object CMakeFiles/quicftp_client.dir/quicftp_client.cc.o
+[ 50%] Linking CXX static library libquicftp_client.a
+[ 75%] Building CXX object CMakeFiles/quicftpclient.dir/quicftpclient-cli.cc.o
+[100%] Linking CXX executable quicftpclient
 ```
 
 ### 3. Run the Server (Docker)
@@ -51,22 +62,80 @@ The server is a Caddy container configured for WebDAV/HTTP3 uploads.
 # Build the server image
 docker build -t quicftp-caddy ./docker/caddy
 
-# Run the server (mapping port 443 UDP/TCP)
-docker run -d -p 443:443/udp -p 443:443/tcp --name quicftp-server quicftp-caddy
+# Run the server (mapping port 443 UDP/TCP and port 80)
+docker run -d -p 443:443/udp -p 443:443/tcp -p 80:80 --name quicftp-server quicftp-caddy
+```
+
+Server starts with HTTP/1.1, HTTP/2, and HTTP/3 support:
+```
+{"logger":"http.log","msg":"server running","name":"srv0","protocols":["h1","h2","h3"]}
+{"logger":"http","msg":"enabling HTTP/3 listener","addr":":443"}
 ```
 
 ## Usage
 
-### Using the CLI
-
-**Upload:**
-```bash
-./build/quicftpclient 127.0.0.1:443 upload local_file.txt certs/client-cert.pem
+### CLI Reference
+```
+$ ./build/quicftpclient
+Usage: ./build/quicftpclient <server> <upload|download> <file1> [file2 ...] [cert_path] [key_path]
+  server: e.g. localhost:443
+  cert_path: (optional) path to client certificate
+  key_path: (optional) path to client key (if not part of cert)
 ```
 
-**Download:**
-```bash
-./build/quicftpclient 127.0.0.1:443 download remote_file.txt local_path.txt
+### Single File Upload
+```
+$ echo "Hello from quicftp!" > test_hello.txt
+$ ./build/quicftpclient localhost:443 upload test_hello.txt
+Created
+```
+
+### Single File Download
+```
+$ rm test_hello.txt
+$ ./build/quicftpclient localhost:443 download test_hello.txt
+$ cat test_hello.txt
+Hello from quicftp!
+```
+
+### Parallel Upload (Multiple Files)
+```
+$ echo "File Alpha" > test_a.txt
+$ echo "File Bravo" > test_b.txt
+$ echo "File Charlie" > test_c.txt
+$ ./build/quicftpclient localhost:443 upload test_a.txt test_b.txt test_c.txt
+Uploaded test_a.txt
+Uploaded test_b.txt
+Uploaded test_c.txt
+```
+
+### Parallel Download (Multiple Files)
+```
+$ rm test_a.txt test_b.txt test_c.txt
+$ ./build/quicftpclient localhost:443 download test_a.txt test_b.txt test_c.txt
+Downloaded test_a.txt
+Downloaded test_b.txt
+Downloaded test_c.txt
+$ cat test_a.txt
+File Alpha
+```
+
+### Large File Transfer (5MB, checksum verified)
+```
+$ dd if=/dev/urandom of=test_5mb.bin bs=1M count=5
+5+0 records in
+5+0 records out
+5242880 bytes (5.2 MB, 5.0 MiB) copied, 0.011 s, 459 MB/s
+
+$ ./build/quicftpclient localhost:443 upload test_5mb.bin
+Created
+
+$ mv test_5mb.bin test_5mb_orig.bin
+$ ./build/quicftpclient localhost:443 download test_5mb.bin
+
+$ md5sum test_5mb_orig.bin test_5mb.bin
+00950ebd942cb1ea79c576432b4fd7c1  test_5mb_orig.bin
+00950ebd942cb1ea79c576432b4fd7c1  test_5mb.bin
 ```
 
 ### C++ API
@@ -77,8 +146,8 @@ docker run -d -p 443:443/udp -p 443:443/tcp --name quicftp-server quicftp-caddy
 quicftp::Client client;
 
 // Connect to server
-if (client.connect("https://127.0.0.1:443")) {
-    // Authenticate (Client Cert)
+if (client.connect("https://localhost:443")) {
+    // Authenticate (Client Cert - optional)
     client.authenticate("certs/client-cert.pem", "certs/client-key.pem");
 
     // Upload
@@ -95,6 +164,13 @@ if (client.connect("https://127.0.0.1:443")) {
     client.upload_files(files);
 }
 ```
+
+### Known Limitations (Phase 1)
+- **No HTTP status checking**: Downloads of missing files write the error body (e.g., "Not Found") to the output file instead of reporting an error.
+- **No progress reporting**: The `ProgressCallback` is defined but not wired to libcurl's progress mechanism.
+- **TLS verification disabled**: Self-signed certs are accepted without validation (`CURLOPT_SSL_VERIFYPEER=0`).
+- **No resume support**: Interrupted transfers must restart from the beginning.
+- See [Phase 2 Roadmap](#phase-2-roadmap) for planned fixes.
 
 ## Architecture
 
