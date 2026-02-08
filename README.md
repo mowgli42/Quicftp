@@ -108,9 +108,41 @@ if (client.connect("https://127.0.0.1:443")) {
 └─────────────────────────┘      └─────────────────────────┘
 ```
 
+## Project Tracking
+
+This project uses two complementary systems for development management:
+
+- **[OpenSpec](openspec/)** — Formal specifications and change proposals for capability definitions
+- **[Beads (bd)](https://github.com/steveyegge/beads)** — Git-backed issue tracker for persistent task management
+
+### Quick Start with Beads
+```bash
+# Install bd CLI (once)
+curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash
+
+# View project task graph
+bd graph workspace-sbe --compact
+
+# Find ready work (no blockers)
+bd ready
+
+# View a specific task
+bd show <task-id>
+```
+
+### Current Epics
+| Epic | ID | Description |
+|------|----|-------------|
+| Project Tracking | `workspace-sbe` | Top-level project tracking |
+| Beads Integration | `workspace-1zw` | Beads setup and configuration |
+| Phase 2 | `workspace-n49` | Production-ready features (testing, security, error handling) |
+
 ## Documentation
-- **[OpenSpec Specifications](openspec/specs/)** - Feature requirements.
-- **[Refactor Proposal](openspec/changes/refactor-architecture-simplify/)** - Details on the architecture shift.
+- **[OpenSpec Specifications](openspec/specs/)** — Feature requirements and capabilities
+- **[OpenSpec Changes](openspec/changes/)** — Active and archived change proposals
+- **[Phase 2 Proposal](openspec/changes/add-phase2-production-ready/proposal.md)** — Production-ready features roadmap
+- **[Beads Integration](openspec/changes/add-beads-project-tracking/proposal.md)** — Task tracking setup
+- **[Architecture Refactor](openspec/changes/archive/2026-01-19-refactor-architecture-simplify/)** — Completed architecture shift
 
 ## License
 MIT License - Copyright 2023 mowgli42
