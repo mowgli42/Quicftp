@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(Quicftp VERSION 0.1.0 LANGUAGES CXX)
+project(Quicftp VERSION 0.2.0 LANGUAGES CXX)
 
 # C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Build options
 option(BUILD_CLIENT "Build client library and CLI" ON)
 option(BUILD_SERVER "Build server library and CLI" OFF) # Server is now Caddy (Docker)
+option(BUILD_TESTING "Build unit tests" ON)
 
 # Find Curl (Custom build or system)
 # We expect the user to run scripts/build_curl_http3.sh to populate deps/dist
@@ -51,6 +52,33 @@ if(BUILD_CLIENT)
     
     add_executable(quicftpclient quicftpclient-cli.cc)
     target_link_libraries(quicftpclient quicftp_client)
+endif()
+
+# Testing
+if(BUILD_TESTING)
+    enable_testing()
+
+    include(FetchContent)
+    FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
+    )
+    # Prevent overriding parent project's compiler/linker settings on Windows
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+
+    add_executable(quicftp_tests
+        tests/test_client.cc
+        tests/test_error_types.cc
+    )
+    target_link_libraries(quicftp_tests
+        quicftp_client
+        GTest::gtest_main
+    )
+    target_include_directories(quicftp_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+    include(GoogleTest)
+    gtest_discover_tests(quicftp_tests)
 endif()
 
 # Installation
