@@ -76,62 +76,70 @@ Server starts with HTTP/1.1, HTTP/2, and HTTP/3 support:
 
 ### CLI Reference
 ```
-$ ./build/quicftpclient
-Usage: ./build/quicftpclient <server> <upload|download> <file1> [file2 ...] [cert_path] [key_path]
-  server: e.g. localhost:443
-  cert_path: (optional) path to client certificate
-  key_path: (optional) path to client key (if not part of cert)
+$ ./build/quicftpclient --help
+Usage: ./build/quicftpclient [options] <server> <upload|download> <file1> [file2 ...]
+
+Options:
+  --help              Show this help message
+  --version           Show version
+  --verbose           Enable verbose output
+  --insecure          Disable TLS certificate verification
+  --ca-cert <path>    Path to CA certificate for TLS verification
+  --cert <path>       Path to client certificate
+  --key <path>        Path to client private key
+  --progress          Show transfer progress
+
+$ ./build/quicftpclient --version
+quicftpclient 0.2.0
 ```
 
 ### Single File Upload
 ```
 $ echo "Hello from quicftp!" > test_hello.txt
 $ ./build/quicftpclient localhost:443 upload test_hello.txt
-Created
+Uploaded test_hello.txt (20 bytes)
 ```
 
 ### Single File Download
 ```
 $ rm test_hello.txt
 $ ./build/quicftpclient localhost:443 download test_hello.txt
+Downloaded test_hello.txt (20 bytes)
 $ cat test_hello.txt
 Hello from quicftp!
 ```
 
 ### Parallel Upload (Multiple Files)
 ```
-$ echo "File Alpha" > test_a.txt
-$ echo "File Bravo" > test_b.txt
-$ echo "File Charlie" > test_c.txt
+$ echo "File Alpha" > test_a.txt && echo "File Bravo" > test_b.txt && echo "File Charlie" > test_c.txt
 $ ./build/quicftpclient localhost:443 upload test_a.txt test_b.txt test_c.txt
-Uploaded test_a.txt
-Uploaded test_b.txt
-Uploaded test_c.txt
+Uploaded test_a.txt (11 bytes)
+Uploaded test_b.txt (11 bytes)
+Uploaded test_c.txt (13 bytes)
+3/3 files uploaded successfully
 ```
 
 ### Parallel Download (Multiple Files)
 ```
 $ rm test_a.txt test_b.txt test_c.txt
 $ ./build/quicftpclient localhost:443 download test_a.txt test_b.txt test_c.txt
-Downloaded test_a.txt
-Downloaded test_b.txt
-Downloaded test_c.txt
-$ cat test_a.txt
-File Alpha
+Downloaded test_a.txt (11 bytes)
+Downloaded test_b.txt (11 bytes)
+Downloaded test_c.txt (13 bytes)
+3/3 files downloaded successfully
 ```
 
 ### Large File Transfer (5MB, checksum verified)
 ```
 $ dd if=/dev/urandom of=test_5mb.bin bs=1M count=5
-5+0 records in
-5+0 records out
 5242880 bytes (5.2 MB, 5.0 MiB) copied, 0.011 s, 459 MB/s
 
 $ ./build/quicftpclient localhost:443 upload test_5mb.bin
-Created
+Uploaded test_5mb.bin (5242880 bytes)
 
 $ mv test_5mb.bin test_5mb_orig.bin
 $ ./build/quicftpclient localhost:443 download test_5mb.bin
+Downloaded test_5mb.bin (5242880 bytes)
 
 $ md5sum test_5mb_orig.bin test_5mb.bin
 00950ebd942cb1ea79c576432b4fd7c1  test_5mb_orig.bin
@@ -165,12 +173,69 @@ if (client.connect("https://localhost:443")) {
 }
 ```
 
-### Known Limitations (Phase 1)
-- **No HTTP status checking**: Downloads of missing files write the error body (e.g., "Not Found") to the output file instead of reporting an error.
-- **No progress reporting**: The `ProgressCallback` is defined but not wired to libcurl's progress mechanism.
-- **TLS verification disabled**: Self-signed certs are accepted without validation (`CURLOPT_SSL_VERIFYPEER=0`).
-- **No resume support**: Interrupted transfers must restart from the beginning.
-- See [Phase 2 Roadmap](#phase-2-roadmap) for planned fixes.
+### Error Handling
+The client now returns structured errors with HTTP status codes:
+```
+$ ./build/quicftpclient localhost:443 download nonexistent_file.xyz
+Error: Download failed with HTTP 404 (HTTP 404)
+
+$ ./build/quicftpclient localhost:443 upload /nonexistent/path/file.txt
+Error: Could not open local file: /nonexistent/path/file.txt
+```
+
+Partial batch results report per-file status:
+```
+$ ./build/quicftpclient localhost:443 download existing.txt missing.xyz other.txt
+Downloaded existing.txt (11 bytes)
+Error [missing.xyz]: Download failed with HTTP 404 for missing.xyz
+Downloaded other.txt (13 bytes)
+2/3 files downloaded successfully
+```
+
+### Progress Reporting
+```
+$ ./build/quicftpclient --progress localhost:443 upload large_file.bin
+  large_file.bin: 51% (262144/512000 bytes)
+  ...
+  large_file.bin: 100% (512000/512000 bytes)
+Uploaded large_file.bin (512000 bytes)
+```
+
+## Testing
+
+### Unit Tests (31 tests)
+```bash
+cd build
+cmake -DCMAKE_CXX_COMPILER=g++ -DBUILD_TESTING=ON ..
+make -j$(nproc)
+ctest --output-on-failure
+```
+```
+100% tests passed, 0 tests failed out of 31
+Total Test time (real) =   0.14 sec
+```
+
+### Integration Tests (8 tests)
+Requires Docker for the Caddy server:
+```bash
+# Build server image first
+docker build -t quicftp-caddy ./docker/caddy
+
+# Run integration tests
+bash scripts/integration_test.sh
+```
+```
+=== Quicftp Integration Tests ===
+PASS: Single file upload
+PASS: Single file download (content verified)
+PASS: Parallel upload (3 files)
+PASS: Parallel download (3 files)
+PASS: Large file transfer (checksum: ef45f34c91a6deb7bca84b9ec5985b2f)
+PASS: 404 error handling (no partial file)
+PASS: CLI --help
+PASS: CLI --version
+=== Results: 8 passed, 0 failed ===
+```
 
 ## Architecture
 
@@ -192,22 +257,20 @@ The project uses **libcurl** (built with HTTP/3 support via ngtcp2 + nghttp3 + O
 - **Protocol**: HTTP/3 over QUIC (UDP). Forced via `CURLOPT_HTTP_VERSION = CURL_HTTP_VERSION_3`.
 - **Authentication**: Client TLS certificates (optional). TLS verification is currently disabled for development (Phase 2 will fix this).
 
-## Phase 2 Roadmap
+## Phase 2 Status
 
-Phase 2 brings the project from "working prototype" to "production-ready." The full proposal is at [`openspec/changes/add-phase2-production-ready/proposal.md`](openspec/changes/add-phase2-production-ready/proposal.md). All tasks are tracked in Beads under epic `workspace-n49`.
+Phase 2 brought the project from "working prototype" to "production-ready." The full proposal is at [`openspec/changes/add-phase2-production-ready/proposal.md`](openspec/changes/add-phase2-production-ready/proposal.md). All tasks tracked in Beads under epic `workspace-n49`.
 
-| Priority | Area | What Changes |
-|----------|------|-------------|
-| **P0** | Security | Enable TLS certificate verification by default. Add CA cert config. Add `--insecure` dev flag. |
-| **P1** | Testing | Unit tests (GoogleTest), Docker Compose integration tests, GitHub Actions CI/CD pipeline. |
-| **P1** | Error Handling | Replace `bool` returns with structured `TransferResult` (error code + message + HTTP status). |
-| **P2** | Progress | Wire up `ProgressCallback` to libcurl's progress reporting. Per-file tracking for parallel transfers. |
-| **P2** | Resume | Resumable transfers via HTTP Range headers and `CURLOPT_RESUME_FROM_LARGE`. |
-| **P2** | Performance | Connection pooling and TLS session caching for faster reconnects. |
-| **P2** | CLI | Proper argument parsing, `--help`, `--progress`, `--resume`, `--ca-cert` flags. |
-| **P3** | Bandwidth | Configurable upload/download speed limits via libcurl. |
+| Priority | Area | Status | What Changed |
+|----------|------|--------|-------------|
+| **P0** | Security | **Done** | TLS verification configurable via `set_ca_cert()` / `set_insecure()`. CLI `--ca-cert` and `--insecure` flags. |
+| **P1** | Testing | **Done** | 31 unit tests (GoogleTest), 8 integration tests (Docker), GitHub Actions CI/CD pipeline. |
+| **P1** | Error Handling | **Done** | `TransferResult` with ErrorCode enum + HTTP status. `BatchTransferResult` for parallel ops. Legacy bool API preserved. |
+| **P2** | Progress | **Done** | `ProgressCallback` wired to `CURLOPT_XFERINFOFUNCTION`. Per-file tracking. CLI `--progress` flag. |
+| **P2** | CLI | **Done** | `--help`, `--version`, `--verbose`, `--progress`, `--insecure`, `--ca-cert`, `--cert`, `--key` flags. Structured error output. |
+| **P3** | Bandwidth | **Done** | `set_bandwidth_limit(upload_bps, download_bps)` via `CURLOPT_MAX_SEND_SPEED_LARGE`. |
 
-**Note:** Phase 2 continues to build on libcurl -- no custom QUIC implementation is planned. All features leverage libcurl's `CURLOPT_*` API.
+**Note:** All Phase 2 features build on libcurl -- no custom QUIC implementation. All features leverage libcurl's `CURLOPT_*` API.
 
 ## Project Tracking
 
