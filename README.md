@@ -98,6 +98,8 @@ if (client.connect("https://127.0.0.1:443")) {
 
 ## Architecture
 
+The project uses **libcurl** (built with HTTP/3 support via ngtcp2 + nghttp3 + OpenSSL) as the client transport layer, and **Caddy** in a Docker container as the QUIC-capable server. This replaced an earlier custom ngtcp2 QUIC stack that was complex and hard to maintain.
+
 ```
 ┌─────────────────────────┐      ┌─────────────────────────┐
 │        Client           │      │         Server          │
@@ -107,6 +109,29 @@ if (client.connect("https://127.0.0.1:443")) {
 │ (HTTP/3 + ngtcp2 + SSL) │ QUIC │   (HTTP/3 + TLS)        │
 └─────────────────────────┘      └─────────────────────────┘
 ```
+
+**Key design choices:**
+- **Client**: `quicftp::Client` wraps libcurl, using `curl_easy` for single transfers and `curl_multi` for parallel transfers. All QUIC/TLS handshake, stream management, and connection logic is handled by libcurl.
+- **Server**: Caddy with the WebDAV module handles file uploads (PUT) and downloads (GET) over HTTP/3. Runs in Docker for easy deployment.
+- **Protocol**: HTTP/3 over QUIC (UDP). Forced via `CURLOPT_HTTP_VERSION = CURL_HTTP_VERSION_3`.
+- **Authentication**: Client TLS certificates (optional). TLS verification is currently disabled for development (Phase 2 will fix this).
+
+## Phase 2 Roadmap
+
+Phase 2 brings the project from "working prototype" to "production-ready." The full proposal is at [`openspec/changes/add-phase2-production-ready/proposal.md`](openspec/changes/add-phase2-production-ready/proposal.md). All tasks are tracked in Beads under epic `workspace-n49`.
+
+| Priority | Area | What Changes |
+|----------|------|-------------|
+| **P0** | Security | Enable TLS certificate verification by default. Add CA cert config. Add `--insecure` dev flag. |
+| **P1** | Testing | Unit tests (GoogleTest), Docker Compose integration tests, GitHub Actions CI/CD pipeline. |
+| **P1** | Error Handling | Replace `bool` returns with structured `TransferResult` (error code + message + HTTP status). |
+| **P2** | Progress | Wire up `ProgressCallback` to libcurl's progress reporting. Per-file tracking for parallel transfers. |
+| **P2** | Resume | Resumable transfers via HTTP Range headers and `CURLOPT_RESUME_FROM_LARGE`. |
+| **P2** | Performance | Connection pooling and TLS session caching for faster reconnects. |
+| **P2** | CLI | Proper argument parsing, `--help`, `--progress`, `--resume`, `--ca-cert` flags. |
+| **P3** | Bandwidth | Configurable upload/download speed limits via libcurl. |
+
+**Note:** Phase 2 continues to build on libcurl -- no custom QUIC implementation is planned. All features leverage libcurl's `CURLOPT_*` API.
 
 ## Project Tracking
 
