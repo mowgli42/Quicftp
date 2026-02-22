@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libcurl4-openssl-dev libssl-dev cmake g++
+
+      - name: Configure
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_CXX_COMPILER=g++ -DBUILD_TESTING=ON ..
+
+      - name: Build
+        run: |
+          cd build
+          make -j$(nproc)
+
+      - name: Run unit tests
+        run: |
+          cd build
+          ctest --output-on-failure
+
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libcurl4-openssl-dev libssl-dev cmake g++
+
+      - name: Build client
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_CXX_COMPILER=g++ -DBUILD_TESTING=OFF ..
+          make -j$(nproc)
+
+      - name: Build and start server
+        run: |
+          docker build -t quicftp-caddy ./docker/caddy
+          docker run -d -p 443:443/udp -p 443:443/tcp -p 80:80 --name quicftp-server quicftp-caddy
+          sleep 3
+
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 15); do
+            if curl -sk https://localhost:443/ > /dev/null 2>&1; then
+              echo "Server is ready"
+              break
+            fi
+            echo "Waiting for server... ($i)"
+            sleep 2
+          done
+
+      - name: Test single file upload
+        run: |
+          echo "Integration test data" > test_upload.txt
+          ./build/quicftpclient localhost:443 upload test_upload.txt
+          echo "Upload OK"
+
+      - name: Test single file download
+        run: |
+          rm -f test_upload.txt
+          ./build/quicftpclient localhost:443 download test_upload.txt
+          CONTENT=$(cat test_upload.txt)
+          [ "$CONTENT" = "Integration test data" ] || { echo "FAIL: content mismatch"; exit 1; }
+          echo "Download OK - content verified"
+
+      - name: Test parallel upload
+        run: |
+          echo "File 1" > t1.txt
+          echo "File 2" > t2.txt
+          echo "File 3" > t3.txt
+          ./build/quicftpclient localhost:443 upload t1.txt t2.txt t3.txt
+          echo "Parallel upload OK"
+
+      - name: Test parallel download
+        run: |
+          rm -f t1.txt t2.txt t3.txt
+          ./build/quicftpclient localhost:443 download t1.txt t2.txt t3.txt
+          [ "$(cat t1.txt)" = "File 1" ] || { echo "FAIL: t1 mismatch"; exit 1; }
+          [ "$(cat t2.txt)" = "File 2" ] || { echo "FAIL: t2 mismatch"; exit 1; }
+          [ "$(cat t3.txt)" = "File 3" ] || { echo "FAIL: t3 mismatch"; exit 1; }
+          echo "Parallel download OK - all content verified"
+
+      - name: Test large file transfer
+        run: |
+          dd if=/dev/urandom of=large_test.bin bs=1M count=5 2>/dev/null
+          MD5_ORIG=$(md5sum large_test.bin | cut -d' ' -f1)
+          ./build/quicftpclient localhost:443 upload large_test.bin
+          mv large_test.bin large_test_orig.bin
+          ./build/quicftpclient localhost:443 download large_test.bin
+          MD5_DL=$(md5sum large_test.bin | cut -d' ' -f1)
+          [ "$MD5_ORIG" = "$MD5_DL" ] || { echo "FAIL: checksum mismatch"; exit 1; }
+          echo "Large file transfer OK - checksum verified ($MD5_ORIG)"
+
+      - name: Test error handling (404)
+        run: |
+          OUTPUT=$(./build/quicftpclient localhost:443 download nonexistent_file_xyz.bin 2>&1) || true
+          echo "$OUTPUT" | grep -q "404" || { echo "FAIL: expected 404 error"; exit 1; }
+          [ ! -f nonexistent_file_xyz.bin ] || { echo "FAIL: error file should not exist"; exit 1; }
+          echo "Error handling OK - 404 properly detected"
+
+      - name: Test CLI help
+        run: |
+          ./build/quicftpclient --help 2>&1 | grep -q "Usage" || { echo "FAIL: --help missing Usage"; exit 1; }
+          echo "CLI help OK"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f quicftp-server 2>/dev/null || true

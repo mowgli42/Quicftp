@@ -46,6 +46,8 @@ Quicftp is a file transfer client library and CLI tool that enables file transfe
 ### Git Workflow
 - Git workflow conventions to be established
 - Follow OpenSpec change proposal workflow for significant changes (see `openspec/AGENTS.md`)
+- Use Beads (`bd`) for persistent task tracking across sessions (see `AGENTS.md` for session protocol)
+- OpenSpec for formal specs/proposals; Beads for day-to-day tasks and progress
 
 ## Domain Context
 - **QUIC Protocol**: Modern transport protocol providing low-latency, multiplexed connections over UDP

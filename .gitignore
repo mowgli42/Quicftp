@@ -1,0 +1,19 @@
+# Build artifacts
+build/
+obj/
+deps/
+
+# IDE
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+test_*.txt
+test_*.bin
+t_*.txt

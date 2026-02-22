@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/quicftpclient.dir/link.d "CMakeFiles/quicftpclient.dir/quicftpclient-cli.cc.o" -o quicftpclient  libquicftp_client.a /usr/lib/libssl.so /usr/lib/libcrypto.so /usr/lib/libngtcp2.so /usr/lib/libngtcp2_crypto_ossl.so /usr/lib/libnghttp3.so

@@ -1,11 +1,4 @@
 {
-    # Enable HTTP/3 explicitly (though it's on by default in Caddy 2)
-    servers :443 {
-        protocol {
-            experimental_http3
-        }
-    }
-    
     # Debug logging to see transfer details
     log {
         output stdout
@@ -13,7 +6,7 @@
     }
 }
 
-:443 {
+localhost {
     # Use self-signed certs for internal testing
     tls internal
 
@@ -26,7 +19,9 @@
     }
 
     # Also allow standard GET downloads
-    file_server {
-        root /data/files
+    route /* {
+        file_server {
+            root /data/files
+        }
     }
 }
