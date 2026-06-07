@@ -93,3 +93,16 @@ When creating tasks:
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 - ALWAYS run `bd sync` before pushing to persist task updates
+
+## Issue Tracking
+
+This project uses **bd (beads)** for issue tracking. Run `bd prime` for workflow context, or install hooks with `bd hooks install` for automatic context injection.
+
+Quick reference:
+
+- `bd ready` - find unblocked work
+- `bd create "Title" --type task --priority 2` - create an issue
+- `bd close <id>` - close completed work
+- `bd dolt push` - push Beads data when using a shared Beads remote
+
+For full workflow details, run `bd prime`.
