@@ -17,6 +17,21 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 <!-- OPENSPEC:END -->
 
+## Hard prohibitions
+
+- Do not commit private keys, `*-key.pem`, `*.key`, `.env` secrets, or `BEGIN … PRIVATE KEY` blobs. Generate TLS with `certs/generate_certs.sh`; keys stay gitignored. Public certs (`*-cert.pem`) may stay in tree.
+- Do not invent commands, env vars, or routes that are not in this tree.
+- Do not rewrite OpenSpec / Gherkin / Beads to match a hoped-for future. Update them only when code already changed.
+
+## Verify by change type
+
+| Change | Check |
+| --- | --- |
+| Client / C++ | `cmake` + unit tests in `build/` |
+| TLS / certs | `bash scripts/scan-secrets.sh .` must pass; no `*-key.pem` tracked |
+| Integration | Docker Caddy + `scripts/integration_test.sh` |
+| Spec | matching OpenSpec change + beads |
+
 ## Beads (bd) — Persistent Task Tracking
 
 This project uses **Beads** (`bd`) as its git-backed issue tracker for persistent task management across sessions. Beads complements OpenSpec: use OpenSpec for formal specifications and change proposals, use Beads for day-to-day task tracking.
@@ -53,6 +68,7 @@ bd update <id> --status in_progress    # Claim task
 bd close <id> --reason "Done"          # Complete task
 bd graph <epic-id> --compact           # View dependency tree
 bd sync                                # Sync to git
+bash scripts/scan-secrets.sh .         # Reject committed private keys
 ```
 
 ### Current Project Epics
@@ -74,7 +90,7 @@ When creating tasks:
 **MANDATORY WORKFLOW:**
 
 1. **File issues for remaining work** - Create bd issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
+2. **Run quality gates** (if code changed) - Tests, linters, builds, `bash scripts/scan-secrets.sh .`
 3. **Update issue status** - Close finished bd issues, update in-progress items
 4. **Sync and PUSH TO REMOTE** - This is MANDATORY:
    ```bash
