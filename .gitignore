@@ -17,3 +17,8 @@ Thumbs.db
 test_*.txt
 test_*.bin
 t_*.txt
+
+# Local TLS private keys (generate with certs/generate_certs.sh)
+certs/*-key.pem
+*.key
+*.pem.key
