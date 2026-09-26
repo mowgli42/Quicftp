@@ -1,12 +1,13 @@
 #!/bin/bash
-# Generate test certificates for Quicftp development
+# Generate test certificates for Quicftp development.
+# Private keys are gitignored. Never commit *-key.pem files.
 
 set -e
 
 CERT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$CERT_DIR"
 
-echo "Generating test certificates for Quicftp..."
+echo "Generating local-only test certificates for Quicftp..."
 
 # Generate CA private key
 openssl genrsa -out ca-key.pem 2048
@@ -40,8 +41,7 @@ openssl x509 -req -days 365 -in client.csr -CA ca-cert.pem -CAkey ca-key.pem \
 # Clean up
 rm -f server.csr client.csr ca-cert.srl
 
-echo "Certificates generated:"
+echo "Certificates generated (keys are local-only, gitignored):"
 echo "  CA: ca-cert.pem, ca-key.pem"
 echo "  Server: server-cert.pem, server-key.pem"
 echo "  Client: client-cert.pem, client-key.pem"
-
