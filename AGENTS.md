@@ -17,108 +17,51 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 <!-- OPENSPEC:END -->
 
+# Quicftp
+
+C++ client library + CLI for file transfer over QUIC (HTTP/3) using libcurl + Caddy Docker server.
+Stack: C++17, CMake, libcurl (HTTP/3), Docker/Caddy, OpenSpec, Beads.
+Posture: ponytail (repo >30 days).
+Shared health pack in `.cursor/skills/` + `.cursor/rules/`.
+
+## Commands
+
+- Build: `mkdir -p build && cd build && cmake -DCMAKE_CXX_COMPILER=g++ .. && make`
+- Unit tests: `cd build && cmake -DBUILD_TESTING=ON .. && make && ctest --output-on-failure`
+- Integration: `docker build -t quicftp-caddy ./docker/caddy && bash scripts/integration_test.sh`
+- Optional HTTP/3 deps: `./scripts/build_curl_http3.sh`
+- Secrets: `bash scripts/scan-secrets.sh .`
+- Beads: `bd ready` / `bd show <id>` / `bd sync`
+
 ## Hard prohibitions
 
-- Do not commit private keys, `*-key.pem`, `*.key`, `.env` secrets, or `BEGIN … PRIVATE KEY` blobs. Generate TLS with `certs/generate_certs.sh`; keys stay gitignored. Public certs (`*-cert.pem`) may stay in tree.
-- Do not invent commands, env vars, or routes that are not in this tree.
-- Do not rewrite OpenSpec / Gherkin / Beads to match a hoped-for future. Update them only when code already changed.
+- Do not commit private keys, `*-key.pem`, `*.key`, or `BEGIN … PRIVATE KEY`. Generate with `certs/generate_certs.sh`; keys stay gitignored. Public certs OK.
+- Do not reintroduce custom ngtcp2 QUIC stack. Use libcurl + Caddy.
+- Do not invent CLI flags, CMake options, or routes not in the tree.
+- Do not rewrite OpenSpec / Beads to match aspirational future. Update only when code changed.
 
 ## Verify by change type
 
 | Change | Check |
 | --- | --- |
-| Client / C++ | `cmake` + unit tests in `build/` |
-| TLS / certs | `bash scripts/scan-secrets.sh .` must pass; no `*-key.pem` tracked |
-| Integration | Docker Caddy + `scripts/integration_test.sh` |
-| Spec | matching OpenSpec change + beads |
+| Client / C++ | cmake + unit tests in `build/` |
+| Server / Docker | integration_test.sh with Caddy |
+| TLS / certs | `bash scripts/scan-secrets.sh .` |
+| Spec | matching OpenSpec + beads |
 
-## Beads (bd) — Persistent Task Tracking
+## Source of truth
 
-This project uses **Beads** (`bd`) as its git-backed issue tracker for persistent task management across sessions. Beads complements OpenSpec: use OpenSpec for formal specifications and change proposals, use Beads for day-to-day task tracking.
+- Behavior: `openspec/` + README usage examples
+- Remaining work: Beads (`.beads/`) / GitHub issues
+- Health bar: `.cursor/rules/repo-health.mdc`
 
-### Prerequisites
-- Install `bd` CLI: `curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash`
-- Minimum version: v0.49.6+
-- The `.beads/` directory is already initialized in this repository
+## House vocabulary
 
-### Session Protocol
-Every work session MUST follow this protocol:
+- quicftpclient — CLI binary. Do not say "ftp client" generically.
+- Parallel transfers — curl_multi batch. Do not invent custom queues.
+- Phase 2 — production-ready features (TLS, errors, progress, bandwidth) already done.
 
-1. **Start**: `bd ready` — Find unblocked work
-2. **Claim**: `bd update <id> --status in_progress` — Claim a task
-3. **Context**: `bd show <id>` — Get full task details and history
-4. **Progress**: `bd update <id> --notes "..."` — Record decisions and outcomes at milestones
-5. **Complete**: `bd close <id> --reason "..."` — Close completed tasks
-6. **Sync**: `bd sync` — Persist to git (always at session end)
+## Borrowed patterns
 
-### When to Use Beads vs OpenSpec vs TodoWrite
-
-| Need | Tool | Why |
-|------|------|-----|
-| Formal spec / capability change | OpenSpec | Proposals, delta specs, validation |
-| Persistent task with dependencies | Beads (bd) | Survives sessions, git-backed |
-| Ephemeral session checklist | TodoWrite | Quick, disposable, current-session only |
-
-### Key Commands
-```bash
-bd ready --json          # Find unblocked tasks
-bd show <id>             # View task details
-bd create "Title" -t task -p 1 --json  # Create new task
-bd update <id> --status in_progress    # Claim task
-bd close <id> --reason "Done"          # Complete task
-bd graph <epic-id> --compact           # View dependency tree
-bd sync                                # Sync to git
-bash scripts/scan-secrets.sh .         # Reject committed private keys
-```
-
-### Current Project Epics
-- `workspace-sbe` — Top-level project tracking
-  - `workspace-1zw` — Beads Integration & Configuration
-  - `workspace-n49` — Phase 2: Production-Ready Features
-
-### Creating New Tasks
-When creating tasks:
-1. Set descriptive title, priority (P0-P4), and type (epic/feature/task/bug)
-2. Link to parent epic: `bd dep add <task-id> <epic-id> --type parent-child`
-3. Add blocking deps where ordering matters: `bd dep add <blocked> <blocker> --type blocks`
-4. Include acceptance criteria: `bd update <id> --acceptance "..."`
-
-## Landing the Plane (Session Completion)
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create bd issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds, `bash scripts/scan-secrets.sh .`
-3. **Update issue status** - Close finished bd issues, update in-progress items
-4. **Sync and PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   bd sync
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session via bd notes
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-- ALWAYS run `bd sync` before pushing to persist task updates
-
-## Issue Tracking
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` for workflow context, or install hooks with `bd hooks install` for automatic context injection.
-
-Quick reference:
-
-- `bd ready` - find unblocked work
-- `bd create "Title" --type task --priority 2` - create an issue
-- `bd close <id>` - close completed work
-- `bd dolt push` - push Beads data when using a shared Beads remote
-
-For full workflow details, run `bd prime`.
+- Hard prohibitions + verification matrix from ossrules.md (hard-prohibition / verification-matrix patterns).
+- Single source of truth (OpenSpec/Beads) — do not duplicate specs.
